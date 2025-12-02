@@ -13,53 +13,21 @@ const CATEGORIES = [
   "Autre",
 ];
 
-// Gabarit de cryptos à pré-remplir (A)
+// Gabarit de cryptos à pré-remplir
 const CRYPTO_TEMPLATES = [
-  {
-    name: "BTC",
-    account: "Bitstack",
-    coingeckoId: "bitcoin",
-  },
-  {
-    name: "BTC",
-    account: "Portefeuille crypto",
-    coingeckoId: "bitcoin",
-  },
-  {
-    name: "ETH",
-    account: "Portefeuille crypto",
-    coingeckoId: "ethereum",
-  },
-  {
-    name: "SOL",
-    account: "Portefeuille crypto",
-    coingeckoId: "solana",
-  },
-  {
-    name: "LINK",
-    account: "Portefeuille crypto",
-    coingeckoId: "chainlink",
-  },
-  {
-    name: "AVAX",
-    account: "Portefeuille crypto",
-    coingeckoId: "avalanche-2",
-  },
-  {
-    name: "ATOM",
-    account: "Portefeuille crypto",
-    coingeckoId: "cosmos",
-  },
+  { name: "BTC", account: "Bitstack", coingeckoId: "bitcoin" },
+  { name: "BTC", account: "Portefeuille crypto", coingeckoId: "bitcoin" },
+  { name: "ETH", account: "Portefeuille crypto", coingeckoId: "ethereum" },
+  { name: "SOL", account: "Portefeuille crypto", coingeckoId: "solana" },
+  { name: "LINK", account: "Portefeuille crypto", coingeckoId: "chainlink" },
+  { name: "AVAX", account: "Portefeuille crypto", coingeckoId: "avalanche-2" },
+  { name: "ATOM", account: "Portefeuille crypto", coingeckoId: "cosmos" },
   {
     name: "INJ",
     account: "Portefeuille crypto",
     coingeckoId: "injective-protocol",
   },
-  {
-    name: "USDT",
-    account: "Portefeuille crypto",
-    coingeckoId: "tether",
-  },
+  { name: "USDT", account: "Portefeuille crypto", coingeckoId: "tether" },
 ];
 
 const DEFAULT_HOLDINGS = [
@@ -103,7 +71,6 @@ function formatNumber(value) {
   });
 }
 
-// petit helper pour deviner l'id CoinGecko (C)
 function guessCoingeckoId(symbol) {
   if (!symbol) return null;
   const s = symbol.toLowerCase();
@@ -234,13 +201,11 @@ export default function App() {
       return;
     }
 
-    // Si on est en mode crypto avec quantité + prix moyen, on calcule le montant investi
     let finalAmountInvested = amountInvested;
     if (newHolding.category === "Crypto" && quantity && avgBuyPrice) {
       finalAmountInvested = quantity * avgBuyPrice;
     }
 
-    // Si on a un prix actuel (livePrice), la valeur actuelle pourra être recalculée à partir de quantity * livePrice.
     let finalCurrentValue = isNaN(currentValue) ? 0 : currentValue;
 
     const coingeckoId =
@@ -272,7 +237,6 @@ export default function App() {
       currentValue: "",
       quantity: "",
       avgBuyPrice: "",
-      // on garde category et currency
     }));
   }
 
@@ -288,16 +252,20 @@ export default function App() {
         } else if (field === "quantity" || field === "avgBuyPrice") {
           updated[field] =
             value === "" ? null : parseFloat(String(value).replace(",", "."));
-          // Recalcul du montant investi si crypto
           if (updated.category === "Crypto") {
             if (updated.quantity && updated.avgBuyPrice) {
               updated.amountInvested =
                 updated.quantity * updated.avgBuyPrice;
             }
-            // Recalcul de la valeur actuelle si on a un prix live
             if (updated.quantity && updated.livePrice) {
               updated.currentValue = updated.quantity * updated.livePrice;
             }
+          }
+        } else if (field === "livePrice") {
+          updated.livePrice =
+            value === "" ? null : parseFloat(String(value).replace(",", "."));
+          if (updated.category === "Crypto" && updated.quantity && updated.livePrice) {
+            updated.currentValue = updated.quantity * updated.livePrice;
           }
         } else {
           updated[field] = value;
@@ -313,7 +281,6 @@ export default function App() {
     setHoldings((prev) => prev.filter((h) => h.id !== id));
   }
 
-  // A : pré-remplir un gabarit de cryptos
   function addCryptoTemplates() {
     setHoldings((prev) => {
       const already = new Set(
@@ -345,7 +312,6 @@ export default function App() {
     });
   }
 
-  // C : récupérer les prix en temps réel via CoinGecko
   async function refreshCryptoPrices() {
     const ids = Array.from(
       new Set(
@@ -394,6 +360,59 @@ export default function App() {
     }
   }
 
+  // EXPORT : télécharge un fichier JSON de tes données
+  function handleExport() {
+    try {
+      const blob = new Blob([JSON.stringify(holdings, null, 2)], {
+        type: "application/json",
+      });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      const date = new Date().toISOString().slice(0, 10);
+      a.href = url;
+      a.download = `suivi-placements-${date}.json`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      console.error(e);
+      alert("Impossible d’exporter les données.");
+    }
+  }
+
+  // IMPORT : charge un fichier JSON et remplace les données locales
+  function handleImport(event) {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const text = e.target.result;
+        const parsed = JSON.parse(text);
+        if (!Array.isArray(parsed)) {
+          alert("Fichier invalide : le contenu n’est pas une liste.");
+          return;
+        }
+        if (
+          !window.confirm(
+            "Importer ces données va remplacer les données actuelles sur cet appareil. Continuer ?"
+          )
+        ) {
+          return;
+        }
+        setHoldings(parsed);
+      } catch (err) {
+        console.error(err);
+        alert("Erreur lors de la lecture du fichier. Vérifie qu’il vient bien de l’export.");
+      } finally {
+        event.target.value = "";
+      }
+    };
+    reader.readAsText(file);
+  }
+
   const profitClassGlobal =
     "card-value " + (profit >= 0 ? "profit-positive" : "profit-negative");
   const profitClassCrypto =
@@ -412,7 +431,7 @@ export default function App() {
           <div className="app-header-subtitle">
             Suivi manuel de tes placements (assurance-vie, PEA/CTO, crypto,
             immobilier, liquidités, etc.). Les données restent uniquement dans
-            ton navigateur.
+            le navigateur de chaque appareil (localStorage).
           </div>
 
           {/* Onglets */}
@@ -420,8 +439,7 @@ export default function App() {
             <button
               type="button"
               className={
-                "tab-btn " +
-                (activeTab === "global" ? "tab-btn-active" : "")
+                "tab-btn " + (activeTab === "global" ? "tab-btn-active" : "")
               }
               onClick={() => setActiveTab("global")}
             >
@@ -430,8 +448,7 @@ export default function App() {
             <button
               type="button"
               className={
-                "tab-btn " +
-                (activeTab === "crypto" ? "tab-btn-active" : "")
+                "tab-btn " + (activeTab === "crypto" ? "tab-btn-active" : "")
               }
               onClick={() => setActiveTab("crypto")}
             >
@@ -439,6 +456,42 @@ export default function App() {
             </button>
           </div>
         </header>
+
+        {/* SAUVEGARDE LOCALE */}
+        <div className="card">
+          <div className="section-title-small">Sauvegarde locale (export / import)</div>
+          <div className="section-subtitle-small">
+            Utilise ces boutons pour transférer tes données d’un appareil à
+            l’autre. L’export crée un fichier <code>.json</code> que tu peux
+            envoyer sur ton téléphone (email, WhatsApp, Drive…), puis importer
+            depuis l’app mobile.
+          </div>
+          <div className="backup-actions">
+            <button type="button" className="btn-secondary" onClick={handleExport}>
+              💾 Exporter les données (JSON)
+            </button>
+            <button
+              type="button"
+              className="btn-secondary"
+              onClick={() =>
+                document.getElementById("import-json-input")?.click()
+              }
+            >
+              📂 Importer un fichier
+            </button>
+            <input
+              id="import-json-input"
+              type="file"
+              accept="application/json"
+              style={{ display: "none" }}
+              onChange={handleImport}
+            />
+          </div>
+          <div className="helper-text">
+            L’export / import fonctionne appareil par appareil. Les données
+            ne sont pas partagées automatiquement entre ton PC et ton téléphone.
+          </div>
+        </div>
 
         {/* CONTENU GLOBAL */}
         {activeTab === "global" && (
@@ -962,9 +1015,7 @@ export default function App() {
                               <input
                                 className="input input-number"
                                 type="number"
-                                value={
-                                  h.livePrice != null ? h.livePrice : ""
-                                }
+                                value={h.livePrice != null ? h.livePrice : ""}
                                 onChange={(e) =>
                                   updateHolding(
                                     h.id,
@@ -1148,10 +1199,7 @@ export default function App() {
                         type="number"
                         value={newHolding.quantity}
                         onChange={(e) =>
-                          handleNewHoldingChange(
-                            "quantity",
-                            e.target.value
-                          )
+                          handleNewHoldingChange("quantity", e.target.value)
                         }
                         placeholder="Ex : 0.5"
                       />

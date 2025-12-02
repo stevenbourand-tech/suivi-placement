@@ -366,3 +366,11 @@ body {
   font-size: 10px;
   color: #9ca3af;
 }
+/* Sauvegarde locale (export / import) */
+
+.backup-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 4px;
+}
