@@ -10,7 +10,18 @@ const CATEGORIES = [
   "PEA / CTO",
   "Crypto",
   "Immobilier",
+  "Start-up",
+  "Crédit maison",
+  "Leasing",
+  "Salaire",
+  "Charges fixes",
   "Autre",
+];
+const EXCLUDED_CATEGORIES = [
+  "Crédit maison",
+  "Leasing",
+  "Salaire",
+  "Charges fixes",
 ];
 
 const DEFAULT_HOLDINGS = [
@@ -159,14 +170,17 @@ export default function App() {
   }, [holdings]);
 
   // ======= DERIVÉS =======
-  const totalInvested = holdings.reduce(
-    (sum, h) => sum + (Number(h.amountInvested) || 0),
-    0
-  );
-  const totalCurrent = holdings.reduce(
-    (sum, h) => sum + (Number(h.currentValue) || 0),
-    0
-  );
+    const totalInvested = holdings.reduce((sum, h) => {
+    // on ne compte pas certaines catégories dans les totaux
+    if (EXCLUDED_CATEGORIES.includes(h.category)) return sum;
+    return sum + (Number(h.amountInvested) || 0);
+  }, 0);
+
+  const totalCurrent = holdings.reduce((sum, h) => {
+    if (EXCLUDED_CATEGORIES.includes(h.category)) return sum;
+    return sum + (Number(h.currentValue) || 0);
+  }, 0);
+
   const totalProfit = computeProfit(totalCurrent, totalInvested);
   const totalProfitPct = computeProfitPercent(totalCurrent, totalInvested);
 
