@@ -1,6 +1,6 @@
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 
-const STORAGE_KEY = "portfolio-holdings-steven-simple";
+const STORAGE_KEY = "steven-portfolio-v1";
 
 const CATEGORIES = [
   "Liquidités",
@@ -13,23 +13,6 @@ const CATEGORIES = [
   "Autre",
 ];
 
-// Gabarit de cryptos à pré-remplir
-const CRYPTO_TEMPLATES = [
-  { name: "BTC", account: "Bitstack", coingeckoId: "bitcoin" },
-  { name: "BTC", account: "Portefeuille crypto", coingeckoId: "bitcoin" },
-  { name: "ETH", account: "Portefeuille crypto", coingeckoId: "ethereum" },
-  { name: "SOL", account: "Portefeuille crypto", coingeckoId: "solana" },
-  { name: "LINK", account: "Portefeuille crypto", coingeckoId: "chainlink" },
-  { name: "AVAX", account: "Portefeuille crypto", coingeckoId: "avalanche-2" },
-  { name: "ATOM", account: "Portefeuille crypto", coingeckoId: "cosmos" },
-  {
-    name: "INJ",
-    account: "Portefeuille crypto",
-    coingeckoId: "injective-protocol",
-  },
-  { name: "USDT", account: "Portefeuille crypto", coingeckoId: "tether" },
-];
-
 const DEFAULT_HOLDINGS = [
   {
     id: 1,
@@ -39,36 +22,77 @@ const DEFAULT_HOLDINGS = [
     amountInvested: 14000,
     currentValue: 14000,
     currency: "EUR",
+    quantity: null,
+    avgBuyPrice: null,
+    pruCurrency: "EUR",
+    livePrice: null,
+    coingeckoId: null,
+    stockTicker: null,
   },
   {
     id: 2,
     name: "ETF Monde",
-    account: "PEA / CTO",
+    account: "PEA Bourse Direct",
     category: "ETF",
     amountInvested: 10000,
     currentValue: 11200,
     currency: "EUR",
+    quantity: null,
+    avgBuyPrice: null,
+    pruCurrency: "EUR",
+    livePrice: null,
+    coingeckoId: null,
+    stockTicker: null,
   },
   {
     id: 3,
+    name: "Air Liquide",
+    account: "PEA Bourse Direct",
+    category: "Actions",
+    amountInvested: 10000,
+    currentValue: 11000,
+    currency: "EUR",
+    quantity: 83,
+    avgBuyPrice: 120,
+    pruCurrency: "EUR",
+    livePrice: null,
+    coingeckoId: null,
+    stockTicker: "AI.PA",
+  },
+  {
+    id: 4,
     name: "BTC",
-    account: "Plateforme crypto",
+    account: "Portefeuille crypto",
     category: "Crypto",
     amountInvested: 1900,
     currentValue: 2600,
     currency: "EUR",
-    quantity: null,
-    avgBuyPrice: null,
+    quantity: 0.05,
+    avgBuyPrice: 38000,
+    pruCurrency: "EUR",
     livePrice: null,
     coingeckoId: "bitcoin",
+    stockTicker: null,
   },
 ];
 
 function formatNumber(value) {
   return Number(value || 0).toLocaleString("fr-FR", {
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
+    maximumFractionDigits: 2,
   });
+}
+
+function computeProfit(current, invested) {
+  const c = Number(current) || 0;
+  const i = Number(invested) || 0;
+  return c - i;
+}
+
+function computeProfitPercent(current, invested) {
+  const c = Number(current) || 0;
+  const i = Number(invested) || 0;
+  if (i <= 0) return 0;
+  return ((c - i) / i) * 100;
 }
 
 function guessCoingeckoId(symbol) {
@@ -89,7 +113,8 @@ function guessCoingeckoId(symbol) {
 
 export default function App() {
   const [holdings, setHoldings] = useState(DEFAULT_HOLDINGS);
-  const [activeTab, setActiveTab] = useState("global"); // "global" ou "crypto"
+  const [activeTab, setActiveTab] = useState("global");
+  const [eurUsdtRate, setEurUsdtRate] = useState(0.93);
   const [newHolding, setNewHolding] = useState({
     name: "",
     account: "",
@@ -99,15 +124,21 @@ export default function App() {
     currency: "EUR",
     quantity: "",
     avgBuyPrice: "",
+    pruCurrency: "EUR",
     coingeckoId: "",
+    stockTicker: "",
   });
-  const [isRefreshingPrices, setIsRefreshingPrices] = useState(false);
-  const [lastPriceUpdate, setLastPriceUpdate] = useState(null);
+  const [sortKey, setSortKey] = useState(null);
+  const [sortDir, setSortDir] = useState("asc");
+  const [isRefreshingCrypto, setIsRefreshingCrypto] = useState(false);
+  const [cryptoLastUpdate, setCryptoLastUpdate] = useState(null);
+  const [isRefreshingStocks, setIsRefreshingStocks] = useState(false);
+  const [stockLastUpdate, setStockLastUpdate] = useState(null);
 
-  // Chargement depuis localStorage
+  // ======= LOCALSTORAGE =======
   useEffect(() => {
     try {
-      const saved = window.localStorage.getItem(STORAGE_KEY);
+      const saved = localStorage.getItem(STORAGE_KEY);
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) {
@@ -115,27 +146,19 @@ export default function App() {
         }
       }
     } catch (e) {
-      console.error("Erreur de lecture du stockage local", e);
+      console.error("Erreur lecture localStorage", e);
     }
   }, []);
 
-  // Sauvegarde dans localStorage
   useEffect(() => {
     try {
-      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(holdings));
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(holdings));
     } catch (e) {
-      console.error("Erreur d'écriture du stockage local", e);
+      console.error("Erreur écriture localStorage", e);
     }
   }, [holdings]);
 
-  // Quand on passe sur l’onglet crypto, on force la catégorie du formulaire sur "Crypto"
-  useEffect(() => {
-    if (activeTab === "crypto") {
-      setNewHolding((prev) => ({ ...prev, category: "Crypto" }));
-    }
-  }, [activeTab]);
-
-  // Stats globales
+  // ======= DERIVÉS =======
   const totalInvested = holdings.reduce(
     (sum, h) => sum + (Number(h.amountInvested) || 0),
     0
@@ -144,22 +167,36 @@ export default function App() {
     (sum, h) => sum + (Number(h.currentValue) || 0),
     0
   );
-  const profit = totalCurrent - totalInvested;
-  const profitPercent = totalInvested > 0 ? (profit / totalInvested) * 100 : 0;
+  const totalProfit = computeProfit(totalCurrent, totalInvested);
+  const totalProfitPct = computeProfitPercent(totalCurrent, totalInvested);
 
-  // Crypto uniquement
   const cryptoHoldings = holdings.filter((h) => h.category === "Crypto");
+  const actionsHoldings = holdings.filter((h) => h.category === "Actions");
+
   const cryptoInvested = cryptoHoldings.reduce(
-    (sum, h) => sum + (Number(h.amountInvested) || 0),
+    (s, h) => s + (Number(h.amountInvested) || 0),
     0
   );
   const cryptoCurrent = cryptoHoldings.reduce(
-    (sum, h) => sum + (Number(h.currentValue) || 0),
+    (s, h) => s + (Number(h.currentValue) || 0),
     0
   );
-  const cryptoProfit = cryptoCurrent - cryptoInvested;
-  const cryptoProfitPercent =
-    cryptoInvested > 0 ? (cryptoProfit / cryptoInvested) * 100 : 0;
+  const cryptoProfit = computeProfit(cryptoCurrent, cryptoInvested);
+  const cryptoProfitPct = computeProfitPercent(cryptoCurrent, cryptoInvested);
+
+  const actionsInvested = actionsHoldings.reduce(
+    (s, h) => s + (Number(h.amountInvested) || 0),
+    0
+  );
+  const actionsCurrent = actionsHoldings.reduce(
+    (s, h) => s + (Number(h.currentValue) || 0),
+    0
+  );
+  const actionsProfit = computeProfit(actionsCurrent, actionsInvested);
+  const actionsProfitPct = computeProfitPercent(
+    actionsCurrent,
+    actionsInvested
+  );
 
   const allocationByCategory = CATEGORIES.map((cat) => {
     const value = holdings
@@ -173,62 +210,142 @@ export default function App() {
     .map((h) => {
       const value = Number(h.currentValue) || 0;
       const weight = cryptoCurrent > 0 ? (value / cryptoCurrent) * 100 : 0;
-      return { name: h.name, account: h.account, value, weight };
+      return { key: `${h.name}-${h.account}`, name: h.name, account: h.account, value, weight };
     })
     .sort((a, b) => b.value - a.value);
+
+  const actionsAllocation = actionsHoldings
+    .map((h) => {
+      const value = Number(h.currentValue) || 0;
+      const weight =
+        actionsCurrent > 0 ? (value / actionsCurrent) * 100 : 0;
+      return {
+        key: `${h.name}-${h.account}`,
+        name: h.name,
+        account: h.account,
+        value,
+        weight,
+      };
+    })
+    .sort((a, b) => b.value - a.value);
+
+  // ======= TRI + ORDRE =======
+  function handleSort(key) {
+    if (sortKey === key) {
+      setSortDir((prev) => (prev === "asc" ? "desc" : "asc"));
+    } else {
+      setSortKey(key);
+      setSortDir("asc");
+    }
+  }
+
+  function getSortedHoldings() {
+    const arr = [...holdings];
+    if (!sortKey) return arr;
+    const dir = sortDir === "asc" ? 1 : -1;
+    return arr.sort((a, b) => {
+      let av = a[sortKey] ?? "";
+      let bv = b[sortKey] ?? "";
+      av = String(av).toLowerCase();
+      bv = String(bv).toLowerCase();
+      if (av < bv) return -1 * dir;
+      if (av > bv) return 1 * dir;
+      return 0;
+    });
+  }
+
+  const displayedHoldings = getSortedHoldings();
+
+  function moveHolding(id, direction) {
+    setHoldings((prev) => {
+      const arr = [...prev];
+      const index = arr.findIndex((h) => h.id === id);
+      if (index === -1) return prev;
+      if (direction === "up" && index === 0) return prev;
+      if (direction === "down" && index === arr.length - 1) return prev;
+      const targetIndex = direction === "up" ? index - 1 : index + 1;
+      const tmp = arr[index];
+      arr[index] = arr[targetIndex];
+      arr[targetIndex] = tmp;
+      return arr;
+    });
+  }
+
+  // ======= AJOUT / MODIF / SUPPR =======
 
   function handleNewHoldingChange(field, value) {
     setNewHolding((prev) => ({ ...prev, [field]: value }));
   }
 
-  function handleAddHolding(e) {
+  function handleAddHolding(e, mode) {
     e.preventDefault();
-    const amountInvested = parseFloat(
-      String(newHolding.amountInvested).replace(",", ".")
-    );
-    const currentValue = parseFloat(
-      String(newHolding.currentValue).replace(",", ".")
-    );
-    const quantity = newHolding.quantity
-      ? parseFloat(String(newHolding.quantity).replace(",", "."))
+
+    const rawQuantity = newHolding.quantity;
+    const rawAvg = newHolding.avgBuyPrice;
+    const quantity = rawQuantity
+      ? parseFloat(String(rawQuantity).replace(",", "."))
       : null;
-    const avgBuyPrice = newHolding.avgBuyPrice
-      ? parseFloat(String(newHolding.avgBuyPrice).replace(",", "."))
+    const avg = rawAvg
+      ? parseFloat(String(rawAvg).replace(",", "."))
+      : null;
+
+    const amountInvestedInput = newHolding.amountInvested
+      ? parseFloat(
+          String(newHolding.amountInvested).replace(",", ".")
+        )
+      : null;
+    const currentValueInput = newHolding.currentValue
+      ? parseFloat(
+          String(newHolding.currentValue).replace(",", ".")
+        )
       : null;
 
     if (!newHolding.name) {
-      alert("Merci de renseigner au minimum le nom.");
+      alert("Merci d’indiquer un nom.");
       return;
     }
 
-    let finalAmountInvested = amountInvested;
-    if (newHolding.category === "Crypto" && quantity && avgBuyPrice) {
-      finalAmountInvested = quantity * avgBuyPrice;
+    let category = newHolding.category;
+    if (mode === "crypto") category = "Crypto";
+    if (mode === "actions") category = "Actions";
+
+    let pruCurrency = newHolding.pruCurrency || "EUR";
+
+    let amountInvested = amountInvestedInput ?? 0;
+    let currentValue = currentValueInput ?? 0;
+
+    if (quantity && avg) {
+      const factor =
+        pruCurrency === "USDT" ? eurUsdtRate : 1;
+      amountInvested = quantity * avg * factor;
     }
 
-    let finalCurrentValue = isNaN(currentValue) ? 0 : currentValue;
-
     const coingeckoId =
-      newHolding.coingeckoId ||
-      (newHolding.category === "Crypto"
-        ? guessCoingeckoId(newHolding.name)
-        : null);
+      category === "Crypto"
+        ? newHolding.coingeckoId || guessCoingeckoId(newHolding.name)
+        : null;
+
+    const stockTicker =
+      category === "Actions" ? newHolding.stockTicker || "" : null;
 
     const holding = {
       id: Date.now(),
       name: newHolding.name,
       account: newHolding.account || "",
-      category: newHolding.category,
-      amountInvested: isNaN(finalAmountInvested) ? 0 : finalAmountInvested,
-      currentValue: finalCurrentValue,
+      category,
+      amountInvested: isNaN(amountInvested) ? 0 : amountInvested,
+      currentValue: isNaN(currentValue) ? 0 : currentValue,
       currency: newHolding.currency || "EUR",
-      quantity: quantity || null,
-      avgBuyPrice: avgBuyPrice || null,
+      quantity: quantity,
+      avgBuyPrice: avg,
+      pruCurrency,
       livePrice: null,
       coingeckoId,
+      stockTicker,
     };
 
     setHoldings((prev) => [...prev, holding]);
+
     setNewHolding((prev) => ({
       ...prev,
       name: "",
@@ -237,6 +354,8 @@ export default function App() {
       currentValue: "",
       quantity: "",
       avgBuyPrice: "",
+      coingeckoId: "",
+      stockTicker: "",
     }));
   }
 
@@ -244,28 +363,46 @@ export default function App() {
     setHoldings((prev) =>
       prev.map((h) => {
         if (h.id !== id) return h;
-        let updated = { ...h };
+        const updated = { ...h };
 
         if (field === "amountInvested" || field === "currentValue") {
           updated[field] =
-            parseFloat(String(value).replace(",", ".")) || 0;
+            value === ""
+              ? 0
+              : parseFloat(String(value).replace(",", ".")) || 0;
         } else if (field === "quantity" || field === "avgBuyPrice") {
           updated[field] =
-            value === "" ? null : parseFloat(String(value).replace(",", "."));
-          if (updated.category === "Crypto") {
-            if (updated.quantity && updated.avgBuyPrice) {
-              updated.amountInvested =
-                updated.quantity * updated.avgBuyPrice;
-            }
-            if (updated.quantity && updated.livePrice) {
-              updated.currentValue = updated.quantity * updated.livePrice;
-            }
+            value === ""
+              ? null
+              : parseFloat(String(value).replace(",", ".")) || 0;
+
+          if (updated.quantity && updated.avgBuyPrice) {
+            const factor =
+              (updated.pruCurrency || "EUR") === "USDT"
+                ? eurUsdtRate
+                : 1;
+            updated.amountInvested =
+              updated.quantity * updated.avgBuyPrice * factor;
+          }
+          if (updated.quantity && updated.livePrice) {
+            updated.currentValue =
+              updated.quantity * updated.livePrice;
+          }
+        } else if (field === "pruCurrency") {
+          updated.pruCurrency = value;
+          if (updated.quantity && updated.avgBuyPrice) {
+            const factor = value === "USDT" ? eurUsdtRate : 1;
+            updated.amountInvested =
+              updated.quantity * updated.avgBuyPrice * factor;
           }
         } else if (field === "livePrice") {
           updated.livePrice =
-            value === "" ? null : parseFloat(String(value).replace(",", "."));
-          if (updated.category === "Crypto" && updated.quantity && updated.livePrice) {
-            updated.currentValue = updated.quantity * updated.livePrice;
+            value === ""
+              ? null
+              : parseFloat(String(value).replace(",", ".")) || 0;
+          if (updated.quantity && updated.livePrice) {
+            updated.currentValue =
+              updated.quantity * updated.livePrice;
           }
         } else {
           updated[field] = value;
@@ -281,36 +418,7 @@ export default function App() {
     setHoldings((prev) => prev.filter((h) => h.id !== id));
   }
 
-  function addCryptoTemplates() {
-    setHoldings((prev) => {
-      const already = new Set(
-        prev
-          .filter((h) => h.category === "Crypto")
-          .map((h) => `${h.name}-${h.account}`)
-      );
-
-      const now = [...prev];
-      CRYPTO_TEMPLATES.forEach((tpl) => {
-        const key = `${tpl.name}-${tpl.account}`;
-        if (!already.has(key)) {
-          now.push({
-            id: Date.now() + Math.random(),
-            name: tpl.name,
-            account: tpl.account,
-            category: "Crypto",
-            amountInvested: 0,
-            currentValue: 0,
-            currency: "EUR",
-            quantity: null,
-            avgBuyPrice: null,
-            livePrice: null,
-            coingeckoId: tpl.coingeckoId,
-          });
-        }
-      });
-      return now;
-    });
-  }
+  // ======= API CRYPTO =======
 
   async function refreshCryptoPrices() {
     const ids = Array.from(
@@ -322,18 +430,18 @@ export default function App() {
     );
     if (ids.length === 0) {
       alert(
-        "Aucun id CoinGecko trouvé. Vérifie les noms de tes cryptos ou ajoute-les via le gabarit."
+        "Aucun id CoinGecko pour les cryptos. Vérifie les noms ou renseigne coingeckoId."
       );
       return;
     }
 
-    setIsRefreshingPrices(true);
+    setIsRefreshingCrypto(true);
     try {
       const url =
         "https://api.coingecko.com/api/v3/simple/price?vs_currencies=eur&ids=" +
         ids.join(",");
       const res = await fetch(url);
-      if (!res.ok) throw new Error("Erreur API prix");
+      if (!res.ok) throw new Error("Erreur API CoinGecko");
       const data = await res.json();
 
       setHoldings((prev) =>
@@ -349,18 +457,77 @@ export default function App() {
           return updated;
         })
       );
-      setLastPriceUpdate(new Date().toLocaleTimeString("fr-FR"));
+      setCryptoLastUpdate(new Date().toLocaleTimeString("fr-FR"));
     } catch (e) {
       console.error(e);
       alert(
-        "Impossible de récupérer les prix (API). Réessaie plus tard ou vérifie ta connexion."
+        "Impossible de récupérer les prix des cryptos. Tu peux continuer en manuel."
       );
     } finally {
-      setIsRefreshingPrices(false);
+      setIsRefreshingCrypto(false);
     }
   }
 
-  // EXPORT : télécharge un fichier JSON de tes données
+  // ======= API ACTIONS (Yahoo Finance) =======
+
+  async function refreshStockPrices() {
+    const tickers = Array.from(
+      new Set(
+        actionsHoldings
+          .map((h) => h.stockTicker)
+          .filter((t) => typeof t === "string" && t.length > 0)
+      )
+    );
+    if (tickers.length === 0) {
+      alert(
+        "Aucun ticker renseigné pour les actions (ex : AI.PA pour Air Liquide)."
+      );
+      return;
+    }
+
+    setIsRefreshingStocks(true);
+    try {
+      const results = {};
+      for (const t of tickers) {
+        const url =
+          "https://query1.finance.yahoo.com/v7/finance/quote?symbols=" + t;
+        const res = await fetch(url);
+        if (!res.ok) continue;
+        const data = await res.json();
+        const quote = data.quoteResponse?.result?.[0];
+        if (!quote || !quote.regularMarketPrice) continue;
+        results[t] = {
+          price: quote.regularMarketPrice,
+          currency: quote.currency || "EUR",
+        };
+      }
+
+      setHoldings((prev) =>
+        prev.map((h) => {
+          if (h.category !== "Actions" || !h.stockTicker) return h;
+          const info = results[h.stockTicker];
+          if (!info) return h;
+          const livePrice = info.price;
+          const updated = { ...h, livePrice };
+          if (updated.quantity) {
+            updated.currentValue = updated.quantity * livePrice;
+          }
+          return updated;
+        })
+      );
+      setStockLastUpdate(new Date().toLocaleTimeString("fr-FR"));
+    } catch (e) {
+      console.error(e);
+      alert(
+        "Impossible d’actualiser les cours des actions. Tu peux saisir le prix actuel à la main."
+      );
+    } finally {
+      setIsRefreshingStocks(false);
+    }
+  }
+
+  // ======= EXPORT / IMPORT JSON =======
+
   function handleExport() {
     try {
       const blob = new Blob([JSON.stringify(holdings, null, 2)], {
@@ -381,7 +548,6 @@ export default function App() {
     }
   }
 
-  // IMPORT : charge un fichier JSON et remplace les données locales
   function handleImport(event) {
     const file = event.target.files?.[0];
     if (!file) return;
@@ -405,7 +571,9 @@ export default function App() {
         setHoldings(parsed);
       } catch (err) {
         console.error(err);
-        alert("Erreur lors de la lecture du fichier. Vérifie qu’il vient bien de l’export.");
+        alert(
+          "Erreur lors de la lecture du fichier. Vérifie qu’il vient bien de l’export."
+        );
       } finally {
         event.target.value = "";
       }
@@ -413,12 +581,18 @@ export default function App() {
     reader.readAsText(file);
   }
 
+  // ======= CLASSES =======
+
   const profitClassGlobal =
-    "card-value " + (profit >= 0 ? "profit-positive" : "profit-negative");
+    "card-value " + (totalProfit >= 0 ? "profit-positive" : "profit-negative");
   const profitClassCrypto =
     "card-value " +
     (cryptoProfit >= 0 ? "profit-positive" : "profit-negative");
+  const profitClassActions =
+    "card-value " +
+    (actionsProfit >= 0 ? "profit-positive" : "profit-negative");
 
+  // ======= RENDER =======
   return (
     <div className="app-shell">
       <div className="app-container">
@@ -426,40 +600,48 @@ export default function App() {
         <header className="app-header">
           <div className="app-header-title">
             <span>📊</span>
-            <span>Tableau de bord patrimoine</span>
+            <span>Tableau de bord placements</span>
           </div>
           <div className="app-header-subtitle">
-            Suivi manuel de tes placements (assurance-vie, PEA/CTO, crypto,
-            immobilier, liquidités, etc.). Les données restent uniquement dans
-            le navigateur de chaque appareil (localStorage).
+            Suivi manuel de ton patrimoine (placements, crypto, actions…).
+            Données stockées uniquement dans ton navigateur.
           </div>
-
-          {/* Onglets */}
           <div className="tabs-row">
             <button
-              type="button"
               className={
-                "tab-btn " + (activeTab === "global" ? "tab-btn-active" : "")
+                "tab-btn " +
+                (activeTab === "global" ? "tab-btn-active" : "")
               }
               onClick={() => setActiveTab("global")}
             >
               Patrimoine global
             </button>
             <button
-              type="button"
               className={
-                "tab-btn " + (activeTab === "crypto" ? "tab-btn-active" : "")
+                "tab-btn " +
+                (activeTab === "crypto" ? "tab-btn-active" : "")
               }
               onClick={() => setActiveTab("crypto")}
             >
               Crypto
+            </button>
+            <button
+              className={
+                "tab-btn " +
+                (activeTab === "actions" ? "tab-btn-active" : "")
+              }
+              onClick={() => setActiveTab("actions")}
+            >
+              Actions
             </button>
           </div>
         </header>
 
         {/* SAUVEGARDE LOCALE */}
         <div className="card">
-          <div className="section-title-small">Sauvegarde locale (export / import)</div>
+          <div className="section-title-small">
+            Sauvegarde locale (export / import)
+          </div>
           <div className="section-subtitle-small">
             Utilise ces boutons pour transférer tes données d’un appareil à
             l’autre. L’export crée un fichier <code>.json</code> que tu peux
@@ -467,7 +649,11 @@ export default function App() {
             depuis l’app mobile.
           </div>
           <div className="backup-actions">
-            <button type="button" className="btn-secondary" onClick={handleExport}>
+            <button
+              type="button"
+              className="btn-secondary"
+              onClick={handleExport}
+            >
               💾 Exporter les données (JSON)
             </button>
             <button
@@ -493,95 +679,115 @@ export default function App() {
           </div>
         </div>
 
-        {/* CONTENU GLOBAL */}
+        {/* ======= ONGLET GLOBAL ======= */}
         {activeTab === "global" && (
           <>
-            {/* STATS GLOBAL */}
             <div className="stats-grid">
               <div className="card">
                 <div className="card-title">Montant investi</div>
                 <div className="card-value">
-                  {formatNumber(totalInvested)}
-                  <span>€</span>
+                  {formatNumber(totalInvested)} <span>€</span>
                 </div>
               </div>
               <div className="card">
                 <div className="card-title">Valeur actuelle</div>
                 <div className="card-value">
-                  {formatNumber(totalCurrent)}
-                  <span>€</span>
+                  {formatNumber(totalCurrent)} <span>€</span>
                 </div>
               </div>
               <div className="card">
                 <div className="card-title">Performance globale</div>
-                <div
-                  style={{ display: "flex", alignItems: "baseline", gap: 8 }}
-                >
+                <div style={{ display: "flex", gap: 8, alignItems: "baseline" }}>
                   <div className={profitClassGlobal}>
-                    {profit >= 0 ? "+" : ""}
-                    {formatNumber(Math.round(profit))}
-                    <span>€</span>
+                    {totalProfit >= 0 ? "+" : ""}
+                    {formatNumber(totalProfit)} <span>€</span>
                   </div>
                   <span
                     className={
-                      "badge " + (profit >= 0 ? "" : "badge-negative")
+                      "badge " +
+                      (totalProfit >= 0 ? "" : "badge-negative")
                     }
                   >
-                    {profit >= 0 ? "+" : ""}
-                    {profitPercent.toFixed(1)}%
+                    {totalProfit >= 0 ? "+" : ""}
+                    {totalProfitPct.toFixed(1)}%
                   </span>
                 </div>
               </div>
             </div>
 
-            {/* MAIN GRID GLOBAL */}
             <div className="main-grid">
-              {/* TABLEAU DES PLACEMENTS */}
+              {/* TABLEAU DETAIL */}
               <div className="card">
                 <div className="card-header">
-                  <div className="card-header-title">Détail des placements</div>
+                  <div className="card-header-title">
+                    Détail des placements
+                  </div>
                   <div className="card-header-subtitle">
-                    Tu peux modifier les montants directement dans le tableau.
+                    Tu peux trier par <b>Compte</b> ou <b>Catégorie</b>, et
+                    réorganiser les lignes avec ↑ / ↓.
                   </div>
                 </div>
                 <div className="table-wrapper">
                   <table className="table">
                     <thead>
                       <tr>
-                        <th>Nom</th>
-                        <th>Compte</th>
-                        <th>Catégorie</th>
+                        <th
+                          style={{ cursor: "pointer" }}
+                          onClick={() => handleSort("name")}
+                        >
+                          Nom{" "}
+                          {sortKey === "name" &&
+                            (sortDir === "asc" ? "↑" : "↓")}
+                        </th>
+                        <th
+                          style={{ cursor: "pointer" }}
+                          onClick={() => handleSort("account")}
+                        >
+                          Compte{" "}
+                          {sortKey === "account" &&
+                            (sortDir === "asc" ? "↑" : "↓")}
+                        </th>
+                        <th
+                          style={{ cursor: "pointer" }}
+                          onClick={() => handleSort("category")}
+                        >
+                          Catégorie{" "}
+                          {sortKey === "category" &&
+                            (sortDir === "asc" ? "↑" : "↓")}
+                        </th>
                         <th style={{ textAlign: "right" }}>Investi (€)</th>
                         <th style={{ textAlign: "right" }}>Valeur (€)</th>
                         <th style={{ textAlign: "right" }}>Perf.</th>
-                        <th style={{ textAlign: "center" }}>Actions</th>
+                        <th style={{ textAlign: "center" }}>Ordre</th>
+                        <th style={{ textAlign: "center" }}>Suppr.</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {holdings.length === 0 && (
+                      {displayedHoldings.length === 0 && (
                         <tr>
                           <td
-                            colSpan={7}
+                            colSpan={8}
                             style={{
                               textAlign: "center",
                               padding: 16,
-                              fontSize: 11,
+                              fontSize: 12,
                               color: "#9ca3af",
                             }}
                           >
-                            Aucune ligne pour l’instant. Ajoute un placement
-                            avec le formulaire à droite.
+                            Aucune ligne. Ajoute un placement avec le
+                            formulaire.
                           </td>
                         </tr>
                       )}
-                      {holdings.map((h) => {
-                        const localProfit =
-                          (Number(h.currentValue) || 0) -
-                          (Number(h.amountInvested) || 0);
-                        const localProfitPct =
-                          (Number(h.amountInvested) || 0) > 0
-                            ? (localProfit / Number(h.amountInvested)) * 100
-                            : 0;
+                      {displayedHoldings.map((h) => {
+                        const localProfit = computeProfit(
+                          h.currentValue,
+                          h.amountInvested
+                        );
+                        const localProfitPct = computeProfitPercent(
+                          h.currentValue,
+                          h.amountInvested
+                        );
                         const positive = localProfit >= 0;
                         return (
                           <tr key={h.id}>
@@ -628,8 +834,8 @@ export default function App() {
                             </td>
                             <td style={{ textAlign: "right" }}>
                               <input
-                                className="input input-number"
                                 type="number"
+                                className="input input-number"
                                 value={h.amountInvested}
                                 onChange={(e) =>
                                   updateHolding(
@@ -642,8 +848,8 @@ export default function App() {
                             </td>
                             <td style={{ textAlign: "right" }}>
                               <input
-                                className="input input-number"
                                 type="number"
+                                className="input input-number"
                                 value={h.currentValue}
                                 onChange={(e) =>
                                   updateHolding(
@@ -664,7 +870,7 @@ export default function App() {
                                 }
                               >
                                 {positive ? "+" : ""}
-                                {formatNumber(Math.round(localProfit))} €
+                                {formatNumber(localProfit)} €
                               </div>
                               <div className="profit-cell-sub">
                                 {positive ? "+" : ""}
@@ -674,7 +880,22 @@ export default function App() {
                             <td style={{ textAlign: "center" }}>
                               <button
                                 className="btn-icon"
-                                title="Supprimer"
+                                onClick={() => moveHolding(h.id, "up")}
+                                title="Monter"
+                              >
+                                ↑
+                              </button>
+                              <button
+                                className="btn-icon"
+                                onClick={() => moveHolding(h.id, "down")}
+                                title="Descendre"
+                              >
+                                ↓
+                              </button>
+                            </td>
+                            <td style={{ textAlign: "center" }}>
+                              <button
+                                className="btn-icon"
                                 onClick={() => deleteHolding(h.id)}
                               >
                                 ✕
@@ -709,7 +930,7 @@ export default function App() {
                         <span>{a.category}</span>
                         <span>
                           {a.weight.toFixed(1)}% ·{" "}
-                          {formatNumber(Math.round(a.value))} €
+                          {formatNumber(a.value)} €
                         </span>
                       </div>
                       <div className="allocation-bar">
@@ -722,38 +943,32 @@ export default function App() {
                   ))}
                 </div>
 
-                <div className="section-title-small">Ajouter un placement</div>
-                <div className="section-subtitle-small">
-                  Crée une ligne par enveloppe (PEA, AV, crypto…) ou par actif
-                  détaillé.
+                <div className="section-title-small">
+                  Ajouter un placement
                 </div>
-
-                <form onSubmit={handleAddHolding}>
+                <form onSubmit={(e) => handleAddHolding(e, "global")}>
                   <div className="form-grid">
                     <div>
-                      <label className="label">Nom du placement</label>
+                      <label className="label">Nom</label>
                       <input
                         className="input"
                         value={newHolding.name}
                         onChange={(e) =>
                           handleNewHoldingChange("name", e.target.value)
                         }
-                        placeholder="Ex : Linxea Spirit 2, PEA Bourse Direct, BTC…"
                       />
                     </div>
                     <div>
-                      <label className="label">Compte / support</label>
+                      <label className="label">Compte</label>
                       <input
                         className="input"
                         value={newHolding.account}
                         onChange={(e) =>
                           handleNewHoldingChange("account", e.target.value)
                         }
-                        placeholder="Ex : Crédit Agricole, Bourse Direct, Binance…"
                       />
                     </div>
                   </div>
-
                   <div className="form-grid-2" style={{ marginTop: 6 }}>
                     <div>
                       <label className="label">Catégorie</label>
@@ -761,7 +976,10 @@ export default function App() {
                         className="select"
                         value={newHolding.category}
                         onChange={(e) =>
-                          handleNewHoldingChange("category", e.target.value)
+                          handleNewHoldingChange(
+                            "category",
+                            e.target.value
+                          )
                         }
                       >
                         {CATEGORIES.map((cat) => (
@@ -771,24 +989,6 @@ export default function App() {
                         ))}
                       </select>
                     </div>
-                    <div>
-                      <label className="label">Devise (info)</label>
-                      <select
-                        className="select"
-                        value={newHolding.currency}
-                        onChange={(e) =>
-                          handleNewHoldingChange("currency", e.target.value)
-                        }
-                      >
-                        <option value="EUR">EUR</option>
-                        <option value="CHF">CHF</option>
-                        <option value="USD">USD</option>
-                        <option value="Autre">Autre</option>
-                      </select>
-                    </div>
-                  </div>
-
-                  <div className="form-grid-2" style={{ marginTop: 6 }}>
                     <div>
                       <label className="label">Montant investi (€)</label>
                       <input
@@ -801,9 +1001,10 @@ export default function App() {
                             e.target.value
                           )
                         }
-                        placeholder="Ex : 10000"
                       />
                     </div>
+                  </div>
+                  <div className="form-grid-2" style={{ marginTop: 6 }}>
                     <div>
                       <label className="label">Valeur actuelle (€)</label>
                       <input
@@ -816,146 +1017,187 @@ export default function App() {
                             e.target.value
                           )
                         }
-                        placeholder="Ex : 11200"
                       />
                     </div>
+                    <div>
+                      <label className="label">Devise info</label>
+                      <select
+                        className="select"
+                        value={newHolding.currency}
+                        onChange={(e) =>
+                          handleNewHoldingChange(
+                            "currency",
+                            e.target.value
+                          )
+                        }
+                      >
+                        <option value="EUR">EUR</option>
+                        <option value="CHF">CHF</option>
+                        <option value="USD">USD</option>
+                        <option value="Autre">Autre</option>
+                      </select>
+                    </div>
                   </div>
-
-                  <button type="submit" className="btn-primary">
-                    ➕ Ajouter la ligne
+                  <button className="btn-primary" type="submit">
+                    ➕ Ajouter le placement
                   </button>
-                  <div className="helper-text">
-                    Astuce : commence par recréer tes grandes enveloppes (PEA,
-                    assurance-vie, crypto, projet Bali, Blast, etc.).
-                  </div>
                 </form>
               </div>
             </div>
           </>
         )}
 
-        {/* CONTENU CRYPTO */}
+        {/* ======= ONGLET CRYPTO ======= */}
         {activeTab === "crypto" && (
           <>
-            {/* STATS CRYPTO + toolbar */}
             <div className="stats-grid">
               <div className="card">
                 <div className="card-title">Montant investi (crypto)</div>
                 <div className="card-value">
-                  {formatNumber(cryptoInvested)}
-                  <span>€</span>
+                  {formatNumber(cryptoInvested)} <span>€</span>
                 </div>
               </div>
               <div className="card">
                 <div className="card-title">Valeur actuelle (crypto)</div>
                 <div className="card-value">
-                  {formatNumber(cryptoCurrent)}
-                  <span>€</span>
+                  {formatNumber(cryptoCurrent)} <span>€</span>
                 </div>
               </div>
               <div className="card">
-                <div className="card-title">Perf. portefeuille crypto</div>
-                <div
-                  style={{ display: "flex", alignItems: "baseline", gap: 8 }}
-                >
+                <div className="card-title">Perf portefeuille crypto</div>
+                <div style={{ display: "flex", gap: 8, alignItems: "baseline" }}>
                   <div className={profitClassCrypto}>
                     {cryptoProfit >= 0 ? "+" : ""}
-                    {formatNumber(Math.round(cryptoProfit))}
-                    <span>€</span>
+                    {formatNumber(cryptoProfit)} <span>€</span>
                   </div>
                   <span
                     className={
-                      "badge " + (cryptoProfit >= 0 ? "" : "badge-negative")
+                      "badge " +
+                      (cryptoProfit >= 0 ? "" : "badge-negative")
                     }
                   >
                     {cryptoProfit >= 0 ? "+" : ""}
-                    {cryptoProfitPercent.toFixed(1)}%
+                    {cryptoProfitPct.toFixed(1)}%
                   </span>
                 </div>
               </div>
             </div>
 
-            <div className="toolbar">
-              <button
-                type="button"
-                className="btn-secondary"
-                onClick={addCryptoTemplates}
-              >
-                ➕ Pré-remplir mes cryptos (BTC, ETH, SOL, AVAX, ATOM, INJ, LINK, USDT…)
-              </button>
-              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <button
-                  type="button"
-                  className="btn-secondary"
-                  onClick={refreshCryptoPrices}
-                  disabled={isRefreshingPrices}
-                >
-                  {isRefreshingPrices
-                    ? "Mise à jour des prix…"
-                    : "⟳ Actualiser les prix (API)"}
-                </button>
-                <span className="meta-text">
-                  {lastPriceUpdate
-                    ? `Dernière mise à jour : ${lastPriceUpdate}`
-                    : "Pas encore de mise à jour des prix"}
-                </span>
+            <div className="card" style={{ marginBottom: 12 }}>
+              <div className="section-title-small">
+                Paramètres crypto (PRU & taux USDT)
+              </div>
+              <div className="section-subtitle-small">
+                Tu peux saisir le PRU de tes cryptos en <b>EUR</b> ou en{" "}
+                <b>USDT</b>. Le montant investi est recalculé automatiquement
+                en euros avec ce taux :
+              </div>
+              <div style={{ marginTop: 6, display: "flex", gap: 8 }}>
+                <label className="label">
+                  Taux EUR / USDT (1 USDT =&nbsp;
+                  <input
+                    type="number"
+                    step="0.0001"
+                    className="input input-number"
+                    style={{ width: 90, display: "inline-block" }}
+                    value={eurUsdtRate}
+                    onChange={(e) =>
+                      setEurUsdtRate(
+                        parseFloat(
+                          String(e.target.value).replace(",", ".")
+                        ) || 0.93
+                      )
+                    }
+                  />
+                  &nbsp;€)
+                </label>
               </div>
             </div>
 
-            {/* GRID CRYPTO */}
             <div className="main-grid">
               {/* TABLEAU CRYPTO */}
               <div className="card">
                 <div className="card-header">
                   <div className="card-header-title">Portefeuille crypto</div>
                   <div className="card-header-subtitle">
-                    Seules les lignes avec la catégorie “Crypto” apparaissent
-                    ici. Tu peux saisir la quantité et ton prix moyen pour
-                    chaque coin.
+                    Qté + PRU (EUR ou USDT) → Investi en €. Clique sur
+                    “Actualiser les prix” pour mettre à jour la valeur actuelle.
                   </div>
                 </div>
+
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    gap: 8,
+                    marginBottom: 8,
+                    flexWrap: "wrap",
+                  }}
+                >
+                  <button
+                    className="btn-secondary"
+                    type="button"
+                    onClick={refreshCryptoPrices}
+                    disabled={isRefreshingCrypto}
+                  >
+                    {isRefreshingCrypto
+                      ? "Mise à jour des prix…"
+                      : "⟳ Actualiser les prix (API CoinGecko)"}
+                  </button>
+                  <span className="meta-text">
+                    {cryptoLastUpdate
+                      ? `Dernière mise à jour : ${cryptoLastUpdate}`
+                      : "Pas encore de mise à jour des prix"}
+                  </span>
+                </div>
+
                 <div className="table-wrapper">
                   <table className="table">
                     <thead>
                       <tr>
                         <th>Crypto</th>
-                        <th>Plateforme</th>
+                        <th>Compte</th>
                         <th>Qté</th>
-                        <th style={{ textAlign: "right" }}>Prix moyen (€)</th>
-                        <th style={{ textAlign: "right" }}>Prix actuel (€)</th>
+                        <th>PRU</th>
+                        <th>Devise PRU</th>
+                        <th style={{ textAlign: "right" }}>
+                          Prix actuel (€)
+                        </th>
                         <th style={{ textAlign: "right" }}>Investi (€)</th>
                         <th style={{ textAlign: "right" }}>Valeur (€)</th>
                         <th style={{ textAlign: "right" }}>Perf.</th>
-                        <th style={{ textAlign: "center" }}>Actions</th>
+                        <th style={{ textAlign: "center" }}>Ordre</th>
+                        <th style={{ textAlign: "center" }}>Suppr.</th>
                       </tr>
                     </thead>
                     <tbody>
                       {cryptoHoldings.length === 0 && (
                         <tr>
                           <td
-                            colSpan={9}
+                            colSpan={11}
                             style={{
                               textAlign: "center",
                               padding: 16,
-                              fontSize: 11,
+                              fontSize: 12,
                               color: "#9ca3af",
                             }}
                           >
-                            Aucune ligne crypto pour l’instant. Utilise le
-                            bouton ci-dessus pour pré-remplir ton portefeuille,
-                            puis indique quantité et prix moyen.
+                            Aucune ligne crypto. Ajoute une crypto avec le
+                            formulaire à droite.
                           </td>
                         </tr>
                       )}
                       {cryptoHoldings.map((h) => {
-                        const localProfit =
-                          (Number(h.currentValue) || 0) -
-                          (Number(h.amountInvested) || 0);
-                        const localProfitPct =
-                          (Number(h.amountInvested) || 0) > 0
-                            ? (localProfit / Number(h.amountInvested)) * 100
-                            : 0;
+                        const localProfit = computeProfit(
+                          h.currentValue,
+                          h.amountInvested
+                        );
+                        const localProfitPct = computeProfitPercent(
+                          h.currentValue,
+                          h.amountInvested
+                        );
                         const positive = localProfit >= 0;
+
                         return (
                           <tr key={h.id}>
                             <td>
@@ -978,7 +1220,6 @@ export default function App() {
                                     e.target.value
                                   )
                                 }
-                                placeholder="Ex : Bitstack, Binance, Swissborg…"
                               />
                             </td>
                             <td>
@@ -993,10 +1234,9 @@ export default function App() {
                                     e.target.value
                                   )
                                 }
-                                placeholder="Qté"
                               />
                             </td>
-                            <td style={{ textAlign: "right" }}>
+                            <td>
                               <input
                                 className="input input-number"
                                 type="number"
@@ -1008,14 +1248,30 @@ export default function App() {
                                     e.target.value
                                   )
                                 }
-                                placeholder="Prix moy."
+                                placeholder="PRU"
                               />
+                            </td>
+                            <td>
+                              <select
+                                className="select"
+                                value={h.pruCurrency || "EUR"}
+                                onChange={(e) =>
+                                  updateHolding(
+                                    h.id,
+                                    "pruCurrency",
+                                    e.target.value
+                                  )
+                                }
+                              >
+                                <option value="EUR">EUR</option>
+                                <option value="USDT">USDT</option>
+                              </select>
                             </td>
                             <td style={{ textAlign: "right" }}>
                               <input
                                 className="input input-number"
                                 type="number"
-                                value={h.livePrice != null ? h.livePrice : ""}
+                                value={h.livePrice ?? ""}
                                 onChange={(e) =>
                                   updateHolding(
                                     h.id,
@@ -1064,7 +1320,7 @@ export default function App() {
                                 }
                               >
                                 {positive ? "+" : ""}
-                                {formatNumber(Math.round(localProfit))} €
+                                {formatNumber(localProfit)} €
                               </div>
                               <div className="profit-cell-sub">
                                 {positive ? "+" : ""}
@@ -1074,7 +1330,22 @@ export default function App() {
                             <td style={{ textAlign: "center" }}>
                               <button
                                 className="btn-icon"
-                                title="Supprimer"
+                                onClick={() => moveHolding(h.id, "up")}
+                                title="Monter"
+                              >
+                                ↑
+                              </button>
+                              <button
+                                className="btn-icon"
+                                onClick={() => moveHolding(h.id, "down")}
+                                title="Descendre"
+                              >
+                                ↓
+                              </button>
+                            </td>
+                            <td style={{ textAlign: "center" }}>
+                              <button
+                                className="btn-icon"
                                 onClick={() => deleteHolding(h.id)}
                               >
                                 ✕
@@ -1088,35 +1359,29 @@ export default function App() {
                 </div>
               </div>
 
-              {/* ALLOCATION CRYPTO + FORMULAIRE CRYPTO */}
+              {/* ALLOCATION + FORM CRYPTO */}
               <div className="card">
                 <div className="section-title-small">
-                  Répartition à l’intérieur de la poche crypto
+                  Répartition de la poche crypto
                 </div>
                 <div className="section-subtitle-small">
-                  Basée uniquement sur la valeur actuelle de tes positions
-                  crypto.
+                  Basée sur la valeur actuelle de chaque ligne crypto.
                 </div>
-
                 <div style={{ marginBottom: 12 }}>
                   {cryptoAllocation.length === 0 && (
                     <div style={{ fontSize: 11, color: "#9ca3af" }}>
-                      Ajoute au moins une ligne crypto pour voir la
-                      répartition.
+                      Ajoute au moins une crypto pour voir la répartition.
                     </div>
                   )}
-                  {cryptoAllocation.map((a, index) => (
-                    <div
-                      key={`${a.name}-${a.account}-${index}`}
-                      className="allocation-row"
-                    >
+                  {cryptoAllocation.map((a) => (
+                    <div key={a.key} className="allocation-row">
                       <div className="allocation-header">
                         <span>
                           {a.name} ({a.account})
                         </span>
                         <span>
                           {a.weight.toFixed(1)}% ·{" "}
-                          {formatNumber(Math.round(a.value))} €
+                          {formatNumber(a.value)} €
                         </span>
                       </div>
                       <div className="allocation-bar">
@@ -1130,67 +1395,29 @@ export default function App() {
                 </div>
 
                 <div className="section-title-small">Ajouter une crypto</div>
-                <div className="section-subtitle-small">
-                  Tu peux suivre BTC, ETH, SOL, AVAX, INJ, ATOM, LINK, USDT,
-                  etc. Si tu connais la quantité et ton prix moyen d’achat,
-                  renseigne-les : le montant investi sera recalculé
-                  automatiquement.
-                </div>
-
-                <form onSubmit={handleAddHolding}>
+                <form onSubmit={(e) => handleAddHolding(e, "crypto")}>
                   <div className="form-grid">
                     <div>
-                      <label className="label">Nom de la crypto</label>
+                      <label className="label">Nom (BTC, ETH…)</label>
                       <input
                         className="input"
                         value={newHolding.name}
                         onChange={(e) =>
                           handleNewHoldingChange("name", e.target.value)
                         }
-                        placeholder="Ex : BTC, ETH, SOL…"
                       />
                     </div>
                     <div>
-                      <label className="label">Plateforme</label>
+                      <label className="label">Compte / plateforme</label>
                       <input
                         className="input"
                         value={newHolding.account}
                         onChange={(e) =>
                           handleNewHoldingChange("account", e.target.value)
                         }
-                        placeholder="Ex : Bitstack, Binance, Swissborg…"
                       />
                     </div>
                   </div>
-
-                  <div className="form-grid-2" style={{ marginTop: 6 }}>
-                    <div>
-                      <label className="label">Catégorie</label>
-                      <input
-                        className="input"
-                        value="Crypto"
-                        disabled
-                        readOnly
-                      />
-                    </div>
-                    <div>
-                      <label className="label">
-                        Id CoinGecko (optionnel)
-                      </label>
-                      <input
-                        className="input"
-                        value={newHolding.coingeckoId}
-                        onChange={(e) =>
-                          handleNewHoldingChange(
-                            "coingeckoId",
-                            e.target.value
-                          )
-                        }
-                        placeholder="Ex : bitcoin, ethereum…"
-                      />
-                    </div>
-                  </div>
-
                   <div className="form-grid-2" style={{ marginTop: 6 }}>
                     <div>
                       <label className="label">Quantité</label>
@@ -1199,13 +1426,15 @@ export default function App() {
                         type="number"
                         value={newHolding.quantity}
                         onChange={(e) =>
-                          handleNewHoldingChange("quantity", e.target.value)
+                          handleNewHoldingChange(
+                            "quantity",
+                            e.target.value
+                          )
                         }
-                        placeholder="Ex : 0.5"
                       />
                     </div>
                     <div>
-                      <label className="label">Prix moyen (€)</label>
+                      <label className="label">PRU</label>
                       <input
                         className="input input-number"
                         type="number"
@@ -1216,32 +1445,440 @@ export default function App() {
                             e.target.value
                           )
                         }
-                        placeholder="Ex : 25000"
                       />
                     </div>
                   </div>
-
                   <div className="form-grid-2" style={{ marginTop: 6 }}>
                     <div>
-                      <label className="label">
-                        Montant investi (€) (facultatif)
-                      </label>
-                      <input
-                        className="input input-number"
-                        type="number"
-                        value={newHolding.amountInvested}
+                      <label className="label">Devise PRU</label>
+                      <select
+                        className="select"
+                        value={newHolding.pruCurrency}
                         onChange={(e) =>
                           handleNewHoldingChange(
-                            "amountInvested",
+                            "pruCurrency",
                             e.target.value
                           )
                         }
-                        placeholder="Sinon calculé depuis Qté x Prix moyen"
+                      >
+                        <option value="EUR">EUR</option>
+                        <option value="USDT">USDT</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="label">Id CoinGecko (optionnel)</label>
+                      <input
+                        className="input"
+                        value={newHolding.coingeckoId}
+                        onChange={(e) =>
+                          handleNewHoldingChange(
+                            "coingeckoId",
+                            e.target.value
+                          )
+                        }
+                        placeholder="bitcoin, ethereum…"
+                      />
+                    </div>
+                  </div>
+                  <button className="btn-primary" type="submit">
+                    ➕ Ajouter la crypto
+                  </button>
+                </form>
+              </div>
+            </div>
+          </>
+        )}
+
+        {/* ======= ONGLET ACTIONS ======= */}
+        {activeTab === "actions" && (
+          <>
+            <div className="stats-grid">
+              <div className="card">
+                <div className="card-title">Montant investi (actions)</div>
+                <div className="card-value">
+                  {formatNumber(actionsInvested)} <span>€</span>
+                </div>
+              </div>
+              <div className="card">
+                <div className="card-title">Valeur actuelle (actions)</div>
+                <div className="card-value">
+                  {formatNumber(actionsCurrent)} <span>€</span>
+                </div>
+              </div>
+              <div className="card">
+                <div className="card-title">Perf portefeuille actions</div>
+                <div style={{ display: "flex", gap: 8, alignItems: "baseline" }}>
+                  <div className={profitClassActions}>
+                    {actionsProfit >= 0 ? "+" : ""}
+                    {formatNumber(actionsProfit)} <span>€</span>
+                  </div>
+                  <span
+                    className={
+                      "badge " +
+                      (actionsProfit >= 0 ? "" : "badge-negative")
+                    }
+                  >
+                    {actionsProfit >= 0 ? "+" : ""}
+                    {actionsProfitPct.toFixed(1)}%
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <div className="card" style={{ marginBottom: 12 }}>
+              <div className="section-title-small">
+                Cours des actions (API Yahoo Finance)
+              </div>
+              <div className="section-subtitle-small">
+                Pour Air Liquide, utilise le ticker <b>AI.PA</b>. Si l’API est
+                bloquée par le navigateur, tu peux toujours saisir le cours
+                manuellement.
+              </div>
+              <div
+                style={{
+                  marginTop: 6,
+                  display: "flex",
+                  justifyContent: "space-between",
+                  gap: 8,
+                  flexWrap: "wrap",
+                }}
+              >
+                <button
+                  className="btn-secondary"
+                  type="button"
+                  onClick={refreshStockPrices}
+                  disabled={isRefreshingStocks}
+                >
+                  {isRefreshingStocks
+                    ? "Mise à jour des cours…"
+                    : "⟳ Actualiser les cours (API Yahoo)"}
+                </button>
+                <span className="meta-text">
+                  {stockLastUpdate
+                    ? `Dernière mise à jour : ${stockLastUpdate}`
+                    : "Pas encore de mise à jour des cours"}
+                </span>
+              </div>
+            </div>
+
+            <div className="main-grid">
+              {/* TABLEAU ACTIONS */}
+              <div className="card">
+                <div className="card-header">
+                  <div className="card-header-title">Portefeuille actions</div>
+                  <div className="card-header-subtitle">
+                    Même principe que la partie crypto, mais avec un ticker de
+                    bourse (ex : AI.PA).
+                  </div>
+                </div>
+                <div className="table-wrapper">
+                  <table className="table">
+                    <thead>
+                      <tr>
+                        <th>Action</th>
+                        <th>Compte</th>
+                        <th>Ticker</th>
+                        <th>Qté</th>
+                        <th style={{ textAlign: "right" }}>PRU (€)</th>
+                        <th style={{ textAlign: "right" }}>
+                          Prix actuel (€)
+                        </th>
+                        <th style={{ textAlign: "right" }}>Investi (€)</th>
+                        <th style={{ textAlign: "right" }}>Valeur (€)</th>
+                        <th style={{ textAlign: "right" }}>Perf.</th>
+                        <th style={{ textAlign: "center" }}>Ordre</th>
+                        <th style={{ textAlign: "center" }}>Suppr.</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {actionsHoldings.length === 0 && (
+                        <tr>
+                          <td
+                            colSpan={11}
+                            style={{
+                              textAlign: "center",
+                              padding: 16,
+                              fontSize: 12,
+                              color: "#9ca3af",
+                            }}
+                          >
+                            Aucune action. Ajoute Air Liquide ou d’autres avec
+                            le formulaire.
+                          </td>
+                        </tr>
+                      )}
+                      {actionsHoldings.map((h) => {
+                        const localProfit = computeProfit(
+                          h.currentValue,
+                          h.amountInvested
+                        );
+                        const localProfitPct = computeProfitPercent(
+                          h.currentValue,
+                          h.amountInvested
+                        );
+                        const positive = localProfit >= 0;
+
+                        return (
+                          <tr key={h.id}>
+                            <td>
+                              <input
+                                className="input"
+                                value={h.name}
+                                onChange={(e) =>
+                                  updateHolding(h.id, "name", e.target.value)
+                                }
+                              />
+                            </td>
+                            <td>
+                              <input
+                                className="input"
+                                value={h.account}
+                                onChange={(e) =>
+                                  updateHolding(
+                                    h.id,
+                                    "account",
+                                    e.target.value
+                                  )
+                                }
+                              />
+                            </td>
+                            <td>
+                              <input
+                                className="input"
+                                value={h.stockTicker || ""}
+                                onChange={(e) =>
+                                  updateHolding(
+                                    h.id,
+                                    "stockTicker",
+                                    e.target.value
+                                  )
+                                }
+                                placeholder="AI.PA"
+                              />
+                            </td>
+                            <td>
+                              <input
+                                className="input input-number"
+                                type="number"
+                                value={h.quantity ?? ""}
+                                onChange={(e) =>
+                                  updateHolding(
+                                    h.id,
+                                    "quantity",
+                                    e.target.value
+                                  )
+                                }
+                              />
+                            </td>
+                            <td style={{ textAlign: "right" }}>
+                              <input
+                                className="input input-number"
+                                type="number"
+                                value={h.avgBuyPrice ?? ""}
+                                onChange={(e) =>
+                                  updateHolding(
+                                    h.id,
+                                    "avgBuyPrice",
+                                    e.target.value
+                                  )
+                                }
+                              />
+                            </td>
+                            <td style={{ textAlign: "right" }}>
+                              <input
+                                className="input input-number"
+                                type="number"
+                                value={h.livePrice ?? ""}
+                                onChange={(e) =>
+                                  updateHolding(
+                                    h.id,
+                                    "livePrice",
+                                    e.target.value
+                                  )
+                                }
+                              />
+                            </td>
+                            <td style={{ textAlign: "right" }}>
+                              <input
+                                className="input input-number"
+                                type="number"
+                                value={h.amountInvested}
+                                onChange={(e) =>
+                                  updateHolding(
+                                    h.id,
+                                    "amountInvested",
+                                    e.target.value
+                                  )
+                                }
+                              />
+                            </td>
+                            <td style={{ textAlign: "right" }}>
+                              <input
+                                className="input input-number"
+                                type="number"
+                                value={h.currentValue}
+                                onChange={(e) =>
+                                  updateHolding(
+                                    h.id,
+                                    "currentValue",
+                                    e.target.value
+                                  )
+                                }
+                              />
+                            </td>
+                            <td style={{ textAlign: "right" }}>
+                              <div
+                                className={
+                                  "profit-cell-main " +
+                                  (positive
+                                    ? "profit-positive"
+                                    : "profit-negative")
+                                }
+                              >
+                                {positive ? "+" : ""}
+                                {formatNumber(localProfit)} €
+                              </div>
+                              <div className="profit-cell-sub">
+                                {positive ? "+" : ""}
+                                {localProfitPct.toFixed(1)}%
+                              </div>
+                            </td>
+                            <td style={{ textAlign: "center" }}>
+                              <button
+                                className="btn-icon"
+                                onClick={() => moveHolding(h.id, "up")}
+                              >
+                                ↑
+                              </button>
+                              <button
+                                className="btn-icon"
+                                onClick={() => moveHolding(h.id, "down")}
+                              >
+                                ↓
+                              </button>
+                            </td>
+                            <td style={{ textAlign: "center" }}>
+                              <button
+                                className="btn-icon"
+                                onClick={() => deleteHolding(h.id)}
+                              >
+                                ✕
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* ALLOCATION + FORM ACTIONS */}
+              <div className="card">
+                <div className="section-title-small">
+                  Répartition de la poche actions
+                </div>
+                <div className="section-subtitle-small">
+                  Basée sur la valeur actuelle de chaque ligne d’actions.
+                </div>
+                <div style={{ marginBottom: 12 }}>
+                  {actionsAllocation.length === 0 && (
+                    <div style={{ fontSize: 11, color: "#9ca3af" }}>
+                      Ajoute au moins une action pour voir la répartition.
+                    </div>
+                  )}
+                  {actionsAllocation.map((a) => (
+                    <div key={a.key} className="allocation-row">
+                      <div className="allocation-header">
+                        <span>
+                          {a.name} ({a.account})
+                        </span>
+                        <span>
+                          {a.weight.toFixed(1)}% ·{" "}
+                          {formatNumber(a.value)} €
+                        </span>
+                      </div>
+                      <div className="allocation-bar">
+                        <div
+                          className="allocation-bar-inner"
+                          style={{ width: `${a.weight}%` }}
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="section-title-small">Ajouter une action</div>
+                <form onSubmit={(e) => handleAddHolding(e, "actions")}>
+                  <div className="form-grid">
+                    <div>
+                      <label className="label">Nom (ex : Air Liquide)</label>
+                      <input
+                        className="input"
+                        value={newHolding.name}
+                        onChange={(e) =>
+                          handleNewHoldingChange("name", e.target.value)
+                        }
+                      />
+                    </div>
+                    <div>
+                      <label className="label">Compte</label>
+                      <input
+                        className="input"
+                        value={newHolding.account}
+                        onChange={(e) =>
+                          handleNewHoldingChange("account", e.target.value)
+                        }
+                      />
+                    </div>
+                  </div>
+                  <div className="form-grid-2" style={{ marginTop: 6 }}>
+                    <div>
+                      <label className="label">Ticker (ex : AI.PA)</label>
+                      <input
+                        className="input"
+                        value={newHolding.stockTicker}
+                        onChange={(e) =>
+                          handleNewHoldingChange(
+                            "stockTicker",
+                            e.target.value
+                          )
+                        }
+                      />
+                    </div>
+                    <div>
+                      <label className="label">Quantité</label>
+                      <input
+                        className="input input-number"
+                        type="number"
+                        value={newHolding.quantity}
+                        onChange={(e) =>
+                          handleNewHoldingChange(
+                            "quantity",
+                            e.target.value
+                          )
+                        }
+                      />
+                    </div>
+                  </div>
+                  <div className="form-grid-2" style={{ marginTop: 6 }}>
+                    <div>
+                      <label className="label">PRU (€)</label>
+                      <input
+                        className="input input-number"
+                        type="number"
+                        value={newHolding.avgBuyPrice}
+                        onChange={(e) =>
+                          handleNewHoldingChange(
+                            "avgBuyPrice",
+                            e.target.value
+                          )
+                        }
                       />
                     </div>
                     <div>
                       <label className="label">
-                        Valeur actuelle (€) (facultatif)
+                        Valeur actuelle (€) (optionnel)
                       </label>
                       <input
                         className="input input-number"
@@ -1253,19 +1890,12 @@ export default function App() {
                             e.target.value
                           )
                         }
-                        placeholder="Sinon calculée depuis l’API"
                       />
                     </div>
                   </div>
-
-                  <button type="submit" className="btn-primary">
-                    ➕ Ajouter la crypto
+                  <button className="btn-primary" type="submit">
+                    ➕ Ajouter l’action
                   </button>
-                  <div className="helper-text">
-                    Ensuite, clique sur “Actualiser les prix (API)” pour
-                    mettre à jour la valeur de ton portefeuille à partir des
-                    cours du marché.
-                  </div>
                 </form>
               </div>
             </div>
