@@ -28,6 +28,7 @@ const BUDGET_CATEGORIES = [
 const CREDIT_CATEGORIES = [
   "Crédit",
   "Crédit immo",
+  "Crédit immobilier", // ajouté pour attraper "Crédit immobilier"
   "Crédit conso",
   "Leasing",
   "Prêt",
@@ -127,6 +128,13 @@ function computeProfitPercent(current, invested) {
   return ((c - i) / i) * 100;
 }
 
+// Conversion simple pour le budget : EUR ou CHF → EUR
+function convertCurrency(amount, currency, chfRate) {
+  const val = Number(amount) || 0;
+  if (currency === "CHF") return val * chfRate;
+  return val; // EUR par défaut
+}
+
 function guessCoingeckoId(symbol) {
   if (!symbol) return null;
   const s = symbol.toLowerCase();
@@ -142,11 +150,25 @@ function guessCoingeckoId(symbol) {
   };
   return map[s] || null;
 }
+const CHF_TO_EUR = 1.05; // 1 CHF = 1,05 €  👉 à ajuster si besoin
+
+function convertHoldingValueToEur(h, amount) {
+  const v = Number(amount) || 0;
+
+  // Ici on cible ton compte UBS (Compte Suisse)
+  if (h.account === "UBS") {
+    return v * CHF_TO_EUR;
+  }
+
+  // Tous les autres sont déjà en euros
+  return v;
+}
 
 export default function App() {
   const [holdings, setHoldings] = useState(DEFAULT_HOLDINGS);
   const [activeTab, setActiveTab] = useState("global");
-  const [eurUsdtRate, setEurUsdtRate] = useState(0.93);
+  const [eurUsdtRate, setEurUsdtRate] = useState(0.86);
+  const [chfEurRate, setChfEurRate] = useState(1.05); // NOUVEAU : 1 CHF = X €
   const [newHolding, setNewHolding] = useState({
     name: "",
     account: "",
@@ -192,16 +214,17 @@ export default function App() {
 
   // ======= DERIVÉS GLOBAUX =======
   const totalInvested = holdings.reduce((sum, h) => {
-    if (EXCLUDED_CATEGORIES.includes(h.category)) return sum;
-    if (h.category === "Crypto") return sum; // crypto gérée à part
-    return sum + (Number(h.amountInvested) || 0);
-  }, 0);
+  if (EXCLUDED_CATEGORIES.includes(h.category)) return sum;
+  if (h.category === "Crypto") return sum;
+  return sum + convertHoldingValueToEur(h, h.amountInvested);
+}, 0);
 
-  const totalCurrent = holdings.reduce((sum, h) => {
-    if (EXCLUDED_CATEGORIES.includes(h.category)) return sum;
-    if (h.category === "Crypto") return sum;
-    return sum + (Number(h.currentValue) || 0);
-  }, 0);
+const totalCurrent = holdings.reduce((sum, h) => {
+  if (EXCLUDED_CATEGORIES.includes(h.category)) return sum;
+  if (h.category === "Crypto") return sum;
+  return sum + convertHoldingValueToEur(h, h.currentValue);
+}, 0);
+
 
   const totalProfit = computeProfit(totalCurrent, totalInvested);
   const totalProfitPct = computeProfitPercent(totalCurrent, totalInvested);
@@ -242,18 +265,27 @@ export default function App() {
   );
 
   const allocationByCategory = INVESTMENT_CATEGORIES.map((cat) => {
-    const value = holdings
-      .filter((h) => h.category === cat)
-      .reduce((sum, h) => sum + (Number(h.currentValue) || 0), 0);
-    const weight = totalCurrent > 0 ? (value / totalCurrent) * 100 : 0;
-    return { category: cat, value, weight };
-  }).filter((a) => a.value > 0);
+  const value = holdings
+    .filter((h) => h.category === cat)
+    .reduce(
+      (sum, h) => sum + convertHoldingValueToEur(h, h.currentValue),
+      0
+    );
+  const weight = totalCurrent > 0 ? (value / totalCurrent) * 100 : 0;
+  return { category: cat, value, weight };
+}).filter((a) => a.value > 0);
 
   const cryptoAllocation = cryptoHoldings
     .map((h) => {
       const value = Number(h.currentValue) || 0;
       const weight = cryptoCurrent > 0 ? (value / cryptoCurrent) * 100 : 0;
-      return { key: `${h.name}-${h.account}`, name: h.name, account: h.account, value, weight };
+      return {
+        key: `${h.name}-${h.account}`,
+        name: h.name,
+        account: h.account,
+        value,
+        weight,
+      };
     })
     .sort((a, b) => b.value - a.value);
 
@@ -272,8 +304,9 @@ export default function App() {
     })
     .sort((a, b) => b.value - a.value);
 
+  // 👉 NOUVEAU : total budget en euros (conversion EUR / CHF)
   const totalBudgetFlux = budgetHoldings.reduce(
-    (s, h) => s + (Number(h.amountInvested) || 0),
+    (s, h) => s + convertCurrency(h.amountInvested, h.currency, chfEurRate),
     0
   );
 
@@ -756,7 +789,9 @@ export default function App() {
           <>
             <div className="stats-grid">
               <div className="card">
-                <div className="card-title">Montant investi (hors crypto / budget / crédits)</div>
+                <div className="card-title">
+                  Montant investi (hors crypto / budget / crédits)
+                </div>
                 <div className="card-value">
                   {formatNumber(totalInvested)} <span>€</span>
                 </div>
@@ -1201,7 +1236,7 @@ export default function App() {
                       setEurUsdtRate(
                         parseFloat(
                           String(e.target.value).replace(",", ".")
-                        ) || 0.93
+                        ) || 0.86
                       )
                     }
                   />
@@ -2028,6 +2063,25 @@ export default function App() {
                   {formatNumber(totalBudgetFlux)} €
                 </span>
               </div>
+              <div style={{ marginTop: 8 }}>
+                <label className="label">
+                  1 CHF =&nbsp;
+                  <input
+                    type="number"
+                    className="input input-number"
+                    style={{ width: 90, display: "inline-block" }}
+                    value={chfEurRate}
+                    onChange={(e) =>
+                      setChfEurRate(
+                        parseFloat(
+                          String(e.target.value).replace(",", ".")
+                        ) || 1.0
+                      )
+                    }
+                  />
+                  &nbsp;€
+                </label>
+              </div>
             </div>
 
             <div className="card">
@@ -2038,7 +2092,9 @@ export default function App() {
                       <th>Nom</th>
                       <th>Compte</th>
                       <th>Catégorie</th>
-                      <th style={{ textAlign: "right" }}>Montant (€)</th>
+                      <th style={{ textAlign: "right" }}>Montant</th>
+                      <th>Devise</th>
+                      <th style={{ textAlign: "right" }}>Montant en €</th>
                       <th style={{ textAlign: "center" }}>Ordre</th>
                       <th style={{ textAlign: "center" }}>Suppr.</th>
                     </tr>
@@ -2107,6 +2163,32 @@ export default function App() {
                               }
                             />
                           </td>
+                          <td>
+                            <select
+                              className="select"
+                              value={h.currency || "EUR"}
+                              onChange={(e) =>
+                                updateHolding(
+                                  h.id,
+                                  "currency",
+                                  e.target.value
+                                )
+                              }
+                            >
+                              <option value="EUR">EUR</option>
+                              <option value="CHF">CHF</option>
+                            </select>
+                          </td>
+                          <td style={{ textAlign: "right" }}>
+                            {formatNumber(
+                              convertCurrency(
+                                h.amountInvested,
+                                h.currency,
+                                chfEurRate
+                              )
+                            )}{" "}
+                            €
+                          </td>
                           <td style={{ textAlign: "center" }}>
                             <button
                               className="btn-icon"
@@ -2137,7 +2219,7 @@ export default function App() {
                     ).length === 0 && (
                       <tr>
                         <td
-                          colSpan={6}
+                          colSpan={8}
                           style={{
                             textAlign: "center",
                             padding: 16,
