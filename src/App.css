@@ -1,42 +1,475 @@
+/* ========= RESET MINIMAL & CONTAINER ========= */
+
+:root {
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+    sans-serif;
+  color: #111827;
+  background-color: #0f172a;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  background: radial-gradient(circle at top, #1f2937 0, #020617 55%);
+  min-height: 100vh;
+}
+
 #root {
   max-width: 1280px;
   margin: 0 auto;
   padding: 2rem;
-  text-align: center;
 }
 
-.logo {
-  height: 6em;
-  padding: 1.5em;
-  will-change: filter;
-  transition: filter 300ms;
-}
-.logo:hover {
-  filter: drop-shadow(0 0 2em #646cffaa);
-}
-.logo.react:hover {
-  filter: drop-shadow(0 0 2em #61dafbaa);
+/* ========= APPLICATION SHELL ========= */
+
+.app-shell {
+  display: flex;
+  justify-content: center;
 }
 
-@keyframes logo-spin {
-  from {
-    transform: rotate(0deg);
-  }
-  to {
-    transform: rotate(360deg);
-  }
+.app-container {
+  width: 100%;
+  max-width: 1100px;
+  background: rgba(15, 23, 42, 0.9);
+  border-radius: 18px;
+  padding: 24px;
+  color: #e5e7eb;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
 }
 
-@media (prefers-reduced-motion: no-preference) {
-  a:nth-of-type(2) .logo {
-    animation: logo-spin infinite 20s linear;
-  }
+/* ========= HEADER ========= */
+
+.app-header {
+  text-align: left;
+  margin-bottom: 16px;
 }
+
+.app-header-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 1.3rem;
+  font-weight: 600;
+  color: #f9fafb;
+}
+
+.app-header-title span:first-child {
+  font-size: 1.5rem;
+}
+
+.app-header-subtitle {
+  margin-top: 4px;
+  font-size: 0.9rem;
+  color: #9ca3af;
+}
+
+/* ========= TABS ========= */
+
+.tabs-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 16px;
+  margin-bottom: 4px;
+  justify-content: flex-start;
+}
+
+.tab-btn {
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1px solid #374151;
+  background: #020617;
+  color: #d1d5db;
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: all 0.15s ease-in-out;
+}
+
+.tab-btn:hover {
+  background: #111827;
+  border-color: #4b5563;
+}
+
+.tab-btn-active {
+  background: #f97316;
+  border-color: #f97316;
+  color: #111827;
+}
+
+/* ========= CARDS / LAYOUT ========= */
 
 .card {
-  padding: 2em;
+  background: rgba(15, 23, 42, 0.95);
+  border-radius: 14px;
+  border: 1px solid #1f2937;
+  padding: 16px 18px;
+  text-align: left;
+  margin-bottom: 12px;
 }
 
-.read-the-docs {
-  color: #888;
+.card-title {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #e5e7eb;
+  margin-bottom: 4px;
+}
+
+.card-value {
+  font-size: 1.3rem;
+  font-weight: 600;
+  margin-top: 4px;
+}
+
+/* stats en haut d'onglet */
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+@media (max-width: 900px) {
+  .stats-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* grid principale (tableau + allocation/form) */
+.main-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 2.1fr) minmax(0, 1.3fr);
+  gap: 12px;
+}
+
+@media (max-width: 1024px) {
+  .main-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ========= SECTIONS / TEXTES ========= */
+
+.section-title-small {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #e5e7eb;
+  margin-bottom: 2px;
+}
+
+.section-subtitle-small {
+  font-size: 0.8rem;
+  color: #9ca3af;
+  line-height: 1.4;
+}
+
+.helper-text {
+  font-size: 0.78rem;
+  color: #6b7280;
+  margin-top: 6px;
+}
+
+.meta-text {
+  font-size: 0.78rem;
+  color: #9ca3af;
+}
+
+/* ========= HEADER DE CARTE AVEC SOUS-TITRE ========= */
+
+.card-header {
+  margin-bottom: 8px;
+}
+
+.card-header-title {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #e5e7eb;
+}
+
+.card-header-subtitle {
+  font-size: 0.8rem;
+  color: #9ca3af;
+  margin-top: 2px;
+}
+
+/* ========= TABLES ========= */
+
+.table-wrapper {
+  width: 100%;
+  overflow-x: auto;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8rem;
+}
+
+.table thead {
+  background: #020617;
+}
+
+.table thead th {
+  text-align: left;
+  padding: 6px 6px;
+  font-weight: 500;
+  color: #9ca3af;
+  border-bottom: 1px solid #1f2937;
+  white-space: nowrap;
+}
+
+.table tbody tr:nth-child(even) {
+  background: rgba(17, 24, 39, 0.9);
+}
+
+.table tbody tr:nth-child(odd) {
+  background: rgba(15, 23, 42, 0.9);
+}
+
+.table tbody td {
+  padding: 4px 6px;
+  vertical-align: middle;
+}
+
+/* ========= INPUTS / SELECTS ========= */
+
+.input,
+.select {
+  width: 100%;
+  border-radius: 6px;
+  border: 1px solid #374151;
+  background: #020617;
+  color: #e5e7eb;
+  padding: 4px 6px;
+  font-size: 0.8rem;
+  box-sizing: border-box;
+}
+
+.input:focus,
+.select:focus {
+  outline: none;
+  border-color: #f97316;
+  box-shadow: 0 0 0 1px rgba(249, 115, 22, 0.5);
+}
+
+.input-number {
+  text-align: right;
+}
+
+/* ========= BOUTONS ========= */
+
+.btn-primary {
+  margin-top: 10px;
+  padding: 7px 10px;
+  border-radius: 8px;
+  border: none;
+  background: linear-gradient(135deg, #f97316, #ea580c);
+  color: #111827;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 8px 18px rgba(249, 115, 22, 0.35);
+  transition: transform 0.1s ease, box-shadow 0.1s ease;
+}
+
+.btn-primary:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 10px 22px rgba(249, 115, 22, 0.38);
+}
+
+.btn-secondary {
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: 1px solid #374151;
+  background: #020617;
+  color: #e5e7eb;
+  font-size: 0.78rem;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  transition: background 0.1s ease, border-color 0.1s ease;
+}
+
+.btn-secondary:hover {
+  background: #111827;
+  border-color: #4b5563;
+}
+
+.btn-secondary:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+/* icône (flèches, croix) */
+
+.btn-icon {
+  border: none;
+  background: transparent;
+  color: #9ca3af;
+  cursor: pointer;
+  font-size: 0.85rem;
+  padding: 0 4px;
+  transition: color 0.1s ease, transform 0.08s ease;
+}
+
+.btn-icon:hover {
+  color: #f97316;
+  transform: translateY(-1px);
+}
+
+.btn-icon:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* ========= FORM GRID ========= */
+
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.form-grid-2 {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+@media (max-width: 700px) {
+  .form-grid,
+  .form-grid-2 {
+    grid-template-columns: 1fr;
+  }
+}
+
+.label {
+  display: block;
+  font-size: 0.76rem;
+  color: #9ca3af;
+  margin-bottom: 2px;
+}
+
+/* ========= BADGES ========= */
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(34, 197, 94, 0.1);
+  color: #22c55e;
+  font-size: 0.7rem;
+  font-weight: 500;
+  border: 1px solid rgba(34, 197, 94, 0.35);
+}
+
+.badge-negative {
+  background: rgba(239, 68, 68, 0.1);
+  color: #f87171;
+  border-color: rgba(239, 68, 68, 0.4);
+}
+
+/* ========= PROFIT / PERF ========= */
+
+.profit-positive {
+  color: #22c55e;
+}
+
+.profit-negative {
+  color: #f87171;
+}
+
+.profit-cell-main {
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.profit-cell-sub {
+  font-size: 0.7rem;
+  color: #9ca3af;
+}
+
+/* ========= ALLOCATION BARS ========= */
+
+.allocation-row {
+  margin-bottom: 8px;
+}
+
+.allocation-header {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.78rem;
+  color: #e5e7eb;
+  margin-bottom: 2px;
+}
+
+.allocation-bar {
+  width: 100%;
+  height: 6px;
+  border-radius: 999px;
+  background: #020617;
+  overflow: hidden;
+}
+
+.allocation-bar-inner {
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #f97316, #fb923c);
+}
+
+/* ========= BACKUP ACTIONS ========= */
+
+.backup-actions {
+  margin-top: 8px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+/* ========= CRYPTO TABLE SPÉCIFIQUE (optionnel mais conservé) ========= */
+
+.crypto-table-wrapper {
+  overflow-x: auto;
+}
+
+/* Réduire un peu la hauteur des lignes pour gagner de la place */
+.crypto-table td,
+.crypto-table th {
+  padding: 6px 8px;
+  white-space: nowrap;
+}
+
+/* Inputs du tableau crypto : plus larges et plus lisibles */
+.crypto-table input.input,
+.crypto-table input.input-number,
+.crypto-table select.select {
+  min-width: 90px;
+  font-size: 0.85rem;
+}
+
+/* Nom de la crypto et compte : un peu plus larges */
+.crypto-table td:nth-child(1) input,
+.crypto-table td:nth-child(2) input {
+  min-width: 120px;
+}
+
+/* QTE / PRU / Devise PRU : largeur intermédiaire */
+.crypto-table td:nth-child(3) input,
+.crypto-table td:nth-child(4) input,
+.crypto-table td:nth-child(5) select {
+  min-width: 80px;
+}
+
+/* Prix actuel / Investi / Valeur : plus large pour les grands nombres */
+.crypto-table td:nth-child(6) input,
+.crypto-table td:nth-child(7) input,
+.crypto-table td:nth-child(8) input {
+  min-width: 95px;
+}
+
+/* Colonne performance : pas de wrap des +X% */
+.crypto-table td:nth-child(9) {
+  white-space: nowrap;
 }

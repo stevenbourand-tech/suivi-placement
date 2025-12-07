@@ -374,3 +374,48 @@ body {
   gap: 8px;
   margin-top: 4px;
 }
+/* ====== Mise en forme spécifique au tableau crypto ====== */
+
+.crypto-table-wrapper {
+  overflow-x: auto; /* au cas où sur mobile */
+}
+
+/* Réduire un peu la hauteur des lignes pour gagner de la place */
+.crypto-table td,
+.crypto-table th {
+  padding: 6px 8px;
+  white-space: nowrap; /* évite que les nombres se coupent sur 2 lignes */
+}
+
+/* Inputs du tableau crypto : plus larges et plus lisibles */
+.crypto-table input.input,
+.crypto-table input.input-number,
+.crypto-table select.select {
+  min-width: 90px;
+  font-size: 0.85rem;
+}
+
+/* Nom de la crypto et compte : un peu plus larges */
+.crypto-table td:nth-child(1) input,
+.crypto-table td:nth-child(2) input {
+  min-width: 120px;
+}
+
+/* QTE / PRU / Devise PRU : largeur intermédiaire */
+.crypto-table td:nth-child(3) input, /* QTE */
+.crypto-table td:nth-child(4) input, /* PRU */
+.crypto-table td:nth-child(5) select /* Devise PRU */ {
+  min-width: 80px;
+}
+
+/* Prix actuel / Investi / Valeur : plus large pour les grands nombres */
+.crypto-table td:nth-child(6) input, /* Prix actuel */
+.crypto-table td:nth-child(7) input, /* Investi */
+.crypto-table td:nth-child(8) input  /* Valeur */ {
+  min-width: 95px;
+}
+
+/* Colonne performance : pas de wrap des +X% */
+.crypto-table td:nth-child(9) {
+  white-space: nowrap;
+}
