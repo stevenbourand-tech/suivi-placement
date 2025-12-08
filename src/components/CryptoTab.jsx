@@ -8,25 +8,46 @@ import AllocationBlock from "./AllocationBlock";
 
 export default function CryptoTab({
   cryptoHoldings,
-  cryptoInvested,
-  cryptoCurrent,
-  cryptoProfit,
-  cryptoProfitPct,
-  cryptoAllocation,
   eurUsdtRate,
   setEurUsdtRate,
-  newHolding,
-  onNewHoldingChange,
-  onAddCrypto,
-  onUpdateHolding,
-  onMoveHolding,
-  onDeleteHolding,
   refreshCryptoPrices,
   isRefreshingCrypto,
   cryptoLastUpdate,
-  profitClassCrypto,
-  sortKey,
+  moveHolding,
+  deleteHolding,
+  updateHolding,
+  newHolding,
+  onNewHoldingChange,
+  onAddHolding,
 }) {
+  const cryptoInvested = cryptoHoldings.reduce(
+    (s, h) => s + (Number(h.amountInvested) || 0),
+    0
+  );
+  const cryptoCurrent = cryptoHoldings.reduce(
+    (s, h) => s + (Number(h.currentValue) || 0),
+    0
+  );
+  const cryptoProfit = computeProfit(cryptoCurrent, cryptoInvested);
+  const cryptoProfitPct = computeProfitPercent(cryptoCurrent, cryptoInvested);
+
+  const profitClassCrypto =
+    "card-value " +
+    (cryptoProfit >= 0 ? "profit-positive" : "profit-negative");
+
+  const cryptoAllocation = cryptoHoldings
+    .map((h) => {
+      const value = Number(h.currentValue) || 0;
+      const weight = cryptoCurrent > 0 ? (value / cryptoCurrent) * 100 : 0;
+      return {
+        key: `${h.name}-${h.account}`,
+        label: `${h.name} (${h.account})`,
+        value,
+        weight,
+      };
+    })
+    .sort((a, b) => b.value - a.value);
+
   return (
     <>
       <div className="stats-grid">
@@ -67,8 +88,8 @@ export default function CryptoTab({
         </div>
         <div className="section-subtitle-small">
           Tu peux saisir le PRU de tes cryptos en <b>EUR</b> ou en{" "}
-          <b>USDT</b>. Le montant investi est recalculé automatiquement en
-          euros avec ce taux :
+          <b>USDT</b>. Le montant investi est recalculé automatiquement en euros
+          avec ce taux :
         </div>
         <div style={{ marginTop: 6, display: "flex", gap: 8 }}>
           <label className="label">
@@ -81,8 +102,7 @@ export default function CryptoTab({
               value={eurUsdtRate}
               onChange={(e) =>
                 setEurUsdtRate(
-                  parseFloat(String(e.target.value).replace(",", ".")) ||
-                    0.86
+                  parseFloat(String(e.target.value).replace(",", ".")) || 0.86
                 )
               }
             />
@@ -97,8 +117,8 @@ export default function CryptoTab({
           <div className="card-header">
             <div className="card-header-title">Portefeuille crypto</div>
             <div className="card-header-subtitle">
-              Qté + PRU (EUR ou USDT) → Investi en €. Clique sur
-              “Actualiser les prix” pour mettre à jour la valeur actuelle.
+              Qté + PRU (EUR ou USDT) → Investi en €. Clique sur “Actualiser
+              les prix” pour mettre à jour la valeur actuelle.
             </div>
           </div>
 
@@ -128,8 +148,8 @@ export default function CryptoTab({
             </span>
           </div>
 
-          <div className="table-wrapper">
-            <table className="table">
+          <div className="table-wrapper crypto-table-wrapper">
+            <table className="table crypto-table">
               <thead>
                 <tr>
                   <th>Crypto</th>
@@ -164,7 +184,7 @@ export default function CryptoTab({
                           className="input"
                           value={h.name}
                           onChange={(e) =>
-                            onUpdateHolding(h.id, "name", e.target.value)
+                            updateHolding(h.id, "name", e.target.value)
                           }
                         />
                       </td>
@@ -173,7 +193,7 @@ export default function CryptoTab({
                           className="input"
                           value={h.account}
                           onChange={(e) =>
-                            onUpdateHolding(h.id, "account", e.target.value)
+                            updateHolding(h.id, "account", e.target.value)
                           }
                         />
                       </td>
@@ -183,11 +203,7 @@ export default function CryptoTab({
                           type="number"
                           value={h.quantity ?? ""}
                           onChange={(e) =>
-                            onUpdateHolding(
-                              h.id,
-                              "quantity",
-                              e.target.value
-                            )
+                            updateHolding(h.id, "quantity", e.target.value)
                           }
                         />
                       </td>
@@ -197,7 +213,7 @@ export default function CryptoTab({
                           type="number"
                           value={h.avgBuyPrice ?? ""}
                           onChange={(e) =>
-                            onUpdateHolding(
+                            updateHolding(
                               h.id,
                               "avgBuyPrice",
                               e.target.value
@@ -211,7 +227,7 @@ export default function CryptoTab({
                           className="select"
                           value={h.pruCurrency || "EUR"}
                           onChange={(e) =>
-                            onUpdateHolding(
+                            updateHolding(
                               h.id,
                               "pruCurrency",
                               e.target.value
@@ -228,11 +244,7 @@ export default function CryptoTab({
                           type="number"
                           value={h.livePrice ?? ""}
                           onChange={(e) =>
-                            onUpdateHolding(
-                              h.id,
-                              "livePrice",
-                              e.target.value
-                            )
+                            updateHolding(h.id, "livePrice", e.target.value)
                           }
                           placeholder="Prix act."
                         />
@@ -243,7 +255,7 @@ export default function CryptoTab({
                           type="number"
                           value={h.amountInvested}
                           onChange={(e) =>
-                            onUpdateHolding(
+                            updateHolding(
                               h.id,
                               "amountInvested",
                               e.target.value
@@ -257,7 +269,7 @@ export default function CryptoTab({
                           type="number"
                           value={h.currentValue}
                           onChange={(e) =>
-                            onUpdateHolding(
+                            updateHolding(
                               h.id,
                               "currentValue",
                               e.target.value
@@ -283,17 +295,15 @@ export default function CryptoTab({
                       <td style={{ textAlign: "center" }}>
                         <button
                           className="btn-icon"
-                          onClick={() => onMoveHolding(h.id, "up")}
+                          onClick={() => moveHolding(h.id, "up")}
                           title="Monter"
-                          disabled={!!sortKey}
                         >
                           ↑
                         </button>
                         <button
                           className="btn-icon"
-                          onClick={() => onMoveHolding(h.id, "down")}
+                          onClick={() => moveHolding(h.id, "down")}
                           title="Descendre"
-                          disabled={!!sortKey}
                         >
                           ↓
                         </button>
@@ -301,7 +311,7 @@ export default function CryptoTab({
                       <td style={{ textAlign: "center" }}>
                         <button
                           className="btn-icon"
-                          onClick={() => onDeleteHolding(h.id)}
+                          onClick={() => deleteHolding(h.id)}
                         >
                           ✕
                         </button>
@@ -336,15 +346,11 @@ export default function CryptoTab({
           <AllocationBlock
             title="Répartition de la poche crypto"
             subtitle="Basée sur la valeur actuelle de chaque ligne crypto."
-            allocations={cryptoAllocation.map((a) => ({
-              ...a,
-              label: `${a.name} (${a.account})`,
-            }))}
-            emptyText="Ajoute au moins une crypto pour voir la répartition."
+            allocations={cryptoAllocation}
           />
 
           <div className="section-title-small">Ajouter une crypto</div>
-          <form onSubmit={onAddCrypto}>
+          <form onSubmit={(e) => onAddHolding(e, "crypto")}>
             <div className="form-grid">
               <div>
                 <label className="label">Nom (BTC, ETH…)</label>

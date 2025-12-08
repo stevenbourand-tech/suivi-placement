@@ -1,7 +1,5 @@
 // src/constants.js
-
 export const STORAGE_KEY = "steven-portfolio-v2";
-export const FX_STORAGE_KEY = "steven-portfolio-fx";
 
 // Catégories "patrimoine / investissements"
 export const INVESTMENT_CATEGORIES = [
@@ -29,7 +27,7 @@ export const BUDGET_CATEGORIES = [
 export const CREDIT_CATEGORIES = [
   "Crédit",
   "Crédit immo",
-  "Crédit immobilier", // ajouté pour attraper "Crédit immobilier"
+  "Crédit immobilier",
   "Crédit conso",
   "Leasing",
   "Prêt",
@@ -39,7 +37,7 @@ export const CREDIT_CATEGORIES = [
 // Liste globale pour les menus déroulants
 export const CATEGORIES = [
   ...INVESTMENT_CATEGORIES,
-  "Crypto", // gérée dans l’onglet Crypto
+  "Crypto",
   ...BUDGET_CATEGORIES,
   ...CREDIT_CATEGORIES,
 ];

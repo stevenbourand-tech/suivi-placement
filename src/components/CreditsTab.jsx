@@ -1,20 +1,20 @@
 // src/components/CreditsTab.jsx
-import {
-  CREDIT_CATEGORIES,
-  CATEGORIES,
-} from "../constants";
+import { CREDIT_CATEGORIES, CATEGORIES } from "../constants";
 import { formatNumber } from "../utils";
 
 export default function CreditsTab({
   displayedHoldings,
-  totalCredits,
-  onUpdateHolding,
-  onMoveHolding,
-  onDeleteHolding,
-  sortKey,
+  updateHolding,
+  moveHolding,
+  deleteHolding,
 }) {
-  const rows = displayedHoldings.filter((h) =>
+  const creditHoldings = displayedHoldings.filter((h) =>
     CREDIT_CATEGORIES.includes(h.category)
+  );
+
+  const totalCredits = creditHoldings.reduce(
+    (s, h) => s + (Number(h.currentValue) || 0),
+    0
   );
 
   return (
@@ -49,14 +49,14 @@ export default function CreditsTab({
               </tr>
             </thead>
             <tbody>
-              {rows.map((h) => (
+              {creditHoldings.map((h) => (
                 <tr key={h.id}>
                   <td>
                     <input
                       className="input"
                       value={h.name}
                       onChange={(e) =>
-                        onUpdateHolding(h.id, "name", e.target.value)
+                        updateHolding(h.id, "name", e.target.value)
                       }
                     />
                   </td>
@@ -65,7 +65,7 @@ export default function CreditsTab({
                       className="input"
                       value={h.account}
                       onChange={(e) =>
-                        onUpdateHolding(h.id, "account", e.target.value)
+                        updateHolding(h.id, "account", e.target.value)
                       }
                     />
                   </td>
@@ -74,7 +74,7 @@ export default function CreditsTab({
                       className="select"
                       value={h.category}
                       onChange={(e) =>
-                        onUpdateHolding(h.id, "category", e.target.value)
+                        updateHolding(h.id, "category", e.target.value)
                       }
                     >
                       {CATEGORIES.map((cat) => (
@@ -90,7 +90,7 @@ export default function CreditsTab({
                       className="input input-number"
                       value={h.amountInvested}
                       onChange={(e) =>
-                        onUpdateHolding(
+                        updateHolding(
                           h.id,
                           "amountInvested",
                           e.target.value
@@ -104,26 +104,20 @@ export default function CreditsTab({
                       className="input input-number"
                       value={h.currentValue}
                       onChange={(e) =>
-                        onUpdateHolding(
-                          h.id,
-                          "currentValue",
-                          e.target.value
-                        )
+                        updateHolding(h.id, "currentValue", e.target.value)
                       }
                     />
                   </td>
                   <td style={{ textAlign: "center" }}>
                     <button
                       className="btn-icon"
-                      onClick={() => onMoveHolding(h.id, "up")}
-                      disabled={!!sortKey}
+                      onClick={() => moveHolding(h.id, "up")}
                     >
                       ↑
                     </button>
                     <button
                       className="btn-icon"
-                      onClick={() => onMoveHolding(h.id, "down")}
-                      disabled={!!sortKey}
+                      onClick={() => moveHolding(h.id, "down")}
                     >
                       ↓
                     </button>
@@ -131,7 +125,7 @@ export default function CreditsTab({
                   <td style={{ textAlign: "center" }}>
                     <button
                       className="btn-icon"
-                      onClick={() => onDeleteHolding(h.id)}
+                      onClick={() => deleteHolding(h.id)}
                     >
                       ✕
                     </button>
@@ -139,7 +133,7 @@ export default function CreditsTab({
                 </tr>
               ))}
 
-              {rows.length === 0 && (
+              {creditHoldings.length === 0 && (
                 <tr>
                   <td
                     colSpan={7}
@@ -151,8 +145,8 @@ export default function CreditsTab({
                     }}
                   >
                     Aucun crédit ou leasing pour l’instant. Tu peux les ajouter
-                    en changeant la catégorie d’une ligne existante (par
-                    exemple "Crédit immo", "Leasing", etc.).
+                    en changeant la catégorie d’une ligne existante (par exemple
+                    "Crédit immo", "Leasing", etc.).
                   </td>
                 </tr>
               )}

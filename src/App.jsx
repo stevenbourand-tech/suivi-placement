@@ -1,22 +1,11 @@
 // src/App.jsx
-import { useEffect, useState, useMemo, useCallback } from "react";
-import "./App.css";
-
+import { useEffect, useState } from "react";
 import {
   STORAGE_KEY,
-  FX_STORAGE_KEY,
-  INVESTMENT_CATEGORIES,
-  EXCLUDED_CATEGORIES,
   DEFAULT_HOLDINGS,
+  CATEGORIES,
 } from "./constants";
-
-import {
-  computeProfit,
-  computeProfitPercent,
-  convertCurrency,
-  convertHoldingValueToEur,
-  guessCoingeckoId,
-} from "./utils";
+import { guessCoingeckoId } from "./utils";
 
 import Tabs from "./components/Tabs";
 import SavePanel from "./components/SavePanel";
@@ -51,7 +40,7 @@ export default function App() {
   const [isRefreshingStocks, setIsRefreshingStocks] = useState(false);
   const [stockLastUpdate, setStockLastUpdate] = useState(null);
 
-  // ======= LOCALSTORAGE : holdings =======
+  // ======= LOCALSTORAGE =======
   useEffect(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEY);
@@ -73,189 +62,6 @@ export default function App() {
       console.error("Erreur écriture localStorage", e);
     }
   }, [holdings]);
-
-  // ======= LOCALSTORAGE : FX =======
-  useEffect(() => {
-    try {
-      const savedFx = localStorage.getItem(FX_STORAGE_KEY);
-      if (savedFx) {
-        const parsed = JSON.parse(savedFx);
-        if (parsed.eurUsdtRate) setEurUsdtRate(parsed.eurUsdtRate);
-        if (parsed.chfEurRate) setChfEurRate(parsed.chfEurRate);
-      }
-    } catch (e) {
-      console.error("Erreur lecture FX localStorage", e);
-    }
-  }, []);
-
-  useEffect(() => {
-    try {
-      localStorage.setItem(
-        FX_STORAGE_KEY,
-        JSON.stringify({ eurUsdtRate, chfEurRate })
-      );
-    } catch (e) {
-      console.error("Erreur écriture FX localStorage", e);
-    }
-  }, [eurUsdtRate, chfEurRate]);
-
-  // ======= DERIVÉS GLOBAUX (useMemo) =======
-  const derived = useMemo(() => {
-    const cryptoHoldings = holdings.filter((h) => h.category === "Crypto");
-    const actionsHoldings = holdings.filter((h) => h.category === "Actions");
-    const budgetHoldings = holdings.filter((h) =>
-      EXCLUDED_CATEGORIES.includes(h.category) &&
-      !["Crédit", "Crédit immo", "Crédit immobilier", "Crédit conso", "Leasing", "Prêt", "Autre crédit"].includes(
-        h.category
-      )
-    );
-    const creditHoldings = holdings.filter((h) =>
-      ["Crédit", "Crédit immo", "Crédit immobilier", "Crédit conso", "Leasing", "Prêt", "Autre crédit"].includes(
-        h.category
-      )
-    );
-
-    const totalInvested = holdings.reduce((sum, h) => {
-      if (EXCLUDED_CATEGORIES.includes(h.category)) return sum;
-      if (h.category === "Crypto") return sum;
-      return sum + convertHoldingValueToEur(h, h.amountInvested, chfEurRate);
-    }, 0);
-
-    const totalCurrent = holdings.reduce((sum, h) => {
-      if (EXCLUDED_CATEGORIES.includes(h.category)) return sum;
-      if (h.category === "Crypto") return sum;
-      return sum + convertHoldingValueToEur(h, h.currentValue, chfEurRate);
-    }, 0);
-
-    const totalProfit = computeProfit(totalCurrent, totalInvested);
-    const totalProfitPct = computeProfitPercent(totalCurrent, totalInvested);
-
-    const cryptoInvested = cryptoHoldings.reduce(
-      (s, h) => s + (Number(h.amountInvested) || 0),
-      0
-    );
-    const cryptoCurrent = cryptoHoldings.reduce(
-      (s, h) => s + (Number(h.currentValue) || 0),
-      0
-    );
-    const cryptoProfit = computeProfit(cryptoCurrent, cryptoInvested);
-    const cryptoProfitPct = computeProfitPercent(
-      cryptoCurrent,
-      cryptoInvested
-    );
-
-    const actionsInvested = actionsHoldings.reduce(
-      (s, h) => s + (Number(h.amountInvested) || 0),
-      0
-    );
-    const actionsCurrent = actionsHoldings.reduce(
-      (s, h) => s + (Number(h.currentValue) || 0),
-      0
-    );
-    const actionsProfit = computeProfit(actionsCurrent, actionsInvested);
-    const actionsProfitPct = computeProfitPercent(
-      actionsCurrent,
-      actionsInvested
-    );
-
-    const allocationByCategory = INVESTMENT_CATEGORIES.map((cat) => {
-      const value = holdings
-        .filter((h) => h.category === cat)
-        .reduce(
-          (sum, h) =>
-            sum + convertHoldingValueToEur(h, h.currentValue, chfEurRate),
-          0
-        );
-      const weight = totalCurrent > 0 ? (value / totalCurrent) * 100 : 0;
-      return { category: cat, value, weight };
-    }).filter((a) => a.value > 0);
-
-    const cryptoAllocation = cryptoHoldings
-      .map((h) => {
-        const value = Number(h.currentValue) || 0;
-        const weight = cryptoCurrent > 0 ? (value / cryptoCurrent) * 100 : 0;
-        return {
-          key: `${h.name}-${h.account}`,
-          name: h.name,
-          account: h.account,
-          value,
-          weight,
-        };
-      })
-      .sort((a, b) => b.value - a.value);
-
-    const actionsAllocation = actionsHoldings
-      .map((h) => {
-        const value = Number(h.currentValue) || 0;
-        const weight =
-          actionsCurrent > 0 ? (value / actionsCurrent) * 100 : 0;
-        return {
-          key: `${h.name}-${h.account}`,
-          name: h.name,
-          account: h.account,
-          value,
-          weight,
-        };
-      })
-      .sort((a, b) => b.value - a.value);
-
-    const totalBudgetFlux = budgetHoldings.reduce(
-      (s, h) =>
-        s + convertCurrency(h.amountInvested, h.currency, chfEurRate),
-      0
-    );
-
-    const totalCredits = creditHoldings.reduce(
-      (s, h) => s + (Number(h.currentValue) || 0),
-      0
-    );
-
-    return {
-      cryptoHoldings,
-      actionsHoldings,
-      budgetHoldings,
-      creditHoldings,
-      totalInvested,
-      totalCurrent,
-      totalProfit,
-      totalProfitPct,
-      cryptoInvested,
-      cryptoCurrent,
-      cryptoProfit,
-      cryptoProfitPct,
-      actionsInvested,
-      actionsCurrent,
-      actionsProfit,
-      actionsProfitPct,
-      allocationByCategory,
-      cryptoAllocation,
-      actionsAllocation,
-      totalBudgetFlux,
-      totalCredits,
-    };
-  }, [holdings, chfEurRate]);
-
-  const {
-    cryptoHoldings,
-    actionsHoldings,
-    totalInvested,
-    totalCurrent,
-    totalProfit,
-    totalProfitPct,
-    cryptoInvested,
-    cryptoCurrent,
-    cryptoProfit,
-    cryptoProfitPct,
-    actionsInvested,
-    actionsCurrent,
-    actionsProfit,
-    actionsProfitPct,
-    allocationByCategory,
-    cryptoAllocation,
-    actionsAllocation,
-    totalBudgetFlux,
-    totalCredits,
-  } = derived;
 
   // ======= TRI / ORDRE =======
   function handleSort(key) {
@@ -285,8 +91,6 @@ export default function App() {
   const displayedHoldings = getSortedHoldings();
 
   function moveHolding(id, direction) {
-    if (sortKey) return; // on bloque le déplacement si tri actif
-
     setHoldings((prev) => {
       const arr = [...prev];
       const index = arr.findIndex((h) => h.id === id);
@@ -306,87 +110,82 @@ export default function App() {
     setNewHolding((prev) => ({ ...prev, [field]: value }));
   }
 
-  const handleAddHolding = useCallback(
-    (e, mode) => {
-      e.preventDefault();
+  function handleAddHolding(e, mode) {
+    e.preventDefault();
 
-      if (!newHolding.name.trim()) {
-        alert("Merci d’indiquer un nom.");
-        return;
-      }
+    const rawQuantity = newHolding.quantity;
+    const rawAvg = newHolding.avgBuyPrice;
+    const quantity = rawQuantity
+      ? parseFloat(String(rawQuantity).replace(",", "."))
+      : null;
+    const avg = rawAvg ? parseFloat(String(rawAvg).replace(",", ".")) : null;
 
-      const parseNum = (val) =>
-        val !== "" && val !== null && val !== undefined
-          ? parseFloat(String(val).replace(",", "."))
-          : null;
+    const amountInvestedInput = newHolding.amountInvested
+      ? parseFloat(String(newHolding.amountInvested).replace(",", "."))
+      : null;
+    const currentValueInput = newHolding.currentValue
+      ? parseFloat(String(newHolding.currentValue).replace(",", "."))
+      : null;
 
-      const quantity = parseNum(newHolding.quantity);
-      const avg = parseNum(newHolding.avgBuyPrice);
-      const amountInvestedInput = parseNum(newHolding.amountInvested);
-      const currentValueInput = parseNum(newHolding.currentValue);
-
-      let category = newHolding.category;
-      if (mode === "crypto") category = "Crypto";
-      if (mode === "actions") category = "Actions";
-
-      let pruCurrency = newHolding.pruCurrency || "EUR";
-
-      let amountInvested = amountInvestedInput ?? 0;
-      let currentValue = currentValueInput ?? 0;
-
-      if (quantity && avg && category === "Crypto") {
-        const factor = pruCurrency === "USDT" ? eurUsdtRate : 1;
-        amountInvested = quantity * avg * factor;
-        if (!currentValue) currentValue = amountInvested;
-      }
-
-      const coingeckoId =
-        category === "Crypto"
-          ? newHolding.coingeckoId || guessCoingeckoId(newHolding.name)
-          : null;
-
-      const stockTicker =
-        category === "Actions" ? newHolding.stockTicker || "" : null;
-
-      const holding = {
-        id: Date.now(),
-        name: newHolding.name.trim(),
-        account: newHolding.account || "",
-        category,
-        amountInvested: isNaN(amountInvested) ? 0 : amountInvested,
-        currentValue: isNaN(currentValue) ? 0 : currentValue,
-        currency: newHolding.currency || "EUR",
-        quantity,
-        avgBuyPrice: avg,
-        pruCurrency,
-        livePrice: null,
-        coingeckoId,
-        stockTicker,
-      };
-
-      setHoldings((prev) => [...prev, holding]);
-
-      setNewHolding((prev) => ({
-        ...prev,
-        name: "",
-        account: "",
-        amountInvested: "",
-        currentValue: "",
-        quantity: "",
-        avgBuyPrice: "",
-        coingeckoId: "",
-        stockTicker: "",
-      }));
-    },
-    [newHolding, eurUsdtRate]
-  );
-
-  function updateHolding(id, field, value) {
-    if (id === "__sort__") {
-      handleSort(value);
+    if (!newHolding.name) {
+      alert("Merci d’indiquer un nom.");
       return;
     }
 
+    let category = newHolding.category;
+    if (mode === "crypto") category = "Crypto";
+    if (mode === "actions") category = "Actions";
+
+    let pruCurrency = newHolding.pruCurrency || "EUR";
+
+    let amountInvested = amountInvestedInput ?? 0;
+    let currentValue = currentValueInput ?? 0;
+
+    if (quantity && avg && category === "Crypto") {
+      const factor = pruCurrency === "USDT" ? eurUsdtRate : 1;
+      amountInvested = quantity * avg * factor;
+    }
+
+    const coingeckoId =
+      category === "Crypto"
+        ? newHolding.coingeckoId || guessCoingeckoId(newHolding.name)
+        : null;
+
+    const stockTicker =
+      category === "Actions" ? newHolding.stockTicker || "" : null;
+
+    const holding = {
+      id: Date.now(),
+      name: newHolding.name,
+      account: newHolding.account || "",
+      category,
+      amountInvested: isNaN(amountInvested) ? 0 : amountInvested,
+      currentValue: isNaN(currentValue) ? 0 : currentValue,
+      currency: newHolding.currency || "EUR",
+      quantity: quantity,
+      avgBuyPrice: avg,
+      pruCurrency,
+      livePrice: null,
+      coingeckoId,
+      stockTicker,
+    };
+
+    setHoldings((prev) => [...prev, holding]);
+
+    setNewHolding((prev) => ({
+      ...prev,
+      name: "",
+      account: "",
+      amountInvested: "",
+      currentValue: "",
+      quantity: "",
+      avgBuyPrice: "",
+      coingeckoId: "",
+      stockTicker: "",
+    }));
+  }
+
+  function updateHolding(id, field, value) {
     setHoldings((prev) =>
       prev.map((h) => {
         if (h.id !== id) return h;
@@ -409,9 +208,7 @@ export default function App() {
             updated.avgBuyPrice
           ) {
             const factor =
-              (updated.pruCurrency || "EUR") === "USDT"
-                ? eurUsdtRate
-                : 1;
+              (updated.pruCurrency || "EUR") === "USDT" ? eurUsdtRate : 1;
             updated.amountInvested =
               updated.quantity * updated.avgBuyPrice * factor;
           }
@@ -453,6 +250,7 @@ export default function App() {
 
   // ======= API CRYPTO =======
   async function refreshCryptoPrices() {
+    const cryptoHoldings = holdings.filter((h) => h.category === "Crypto");
     const ids = Array.from(
       new Set(
         cryptoHoldings
@@ -500,8 +298,9 @@ export default function App() {
     }
   }
 
-  // ======= API ACTIONS (Yahoo Finance) =======
+  // ======= API ACTIONS =======
   async function refreshStockPrices() {
+    const actionsHoldings = holdings.filter((h) => h.category === "Actions");
     const tickers = Array.from(
       new Set(
         actionsHoldings
@@ -611,17 +410,10 @@ export default function App() {
     reader.readAsText(file);
   }
 
-  // ======= CLASSES CSS =======
-  const profitClassGlobal =
-    "card-value " + (totalProfit >= 0 ? "profit-positive" : "profit-negative");
-  const profitClassCrypto =
-    "card-value " +
-    (cryptoProfit >= 0 ? "profit-positive" : "profit-negative");
-  const profitClassActions =
-    "card-value " +
-    (actionsProfit >= 0 ? "profit-positive" : "profit-negative");
+  // ======= FILTRES PAR POCHES =======
+  const cryptoHoldings = holdings.filter((h) => h.category === "Crypto");
+  const actionsHoldings = holdings.filter((h) => h.category === "Actions");
 
-  // ======= RENDER =======
   return (
     <div className="app-shell">
       <div className="app-container">
@@ -639,96 +431,80 @@ export default function App() {
           <Tabs activeTab={activeTab} onChange={setActiveTab} />
         </header>
 
-        {/* SAUVEGARDE */}
+        {/* SAUVEGARDE LOCALE */}
         <SavePanel onExport={handleExport} onImport={handleImport} />
 
-        {/* ONGLETS */}
+        {/* ONGLET PATRIMOINE */}
         {activeTab === "global" && (
           <InvestmentsTab
-            totalInvested={totalInvested}
-            totalCurrent={totalCurrent}
-            totalProfit={totalProfit}
-            totalProfitPct={totalProfitPct}
-            allocationByCategory={allocationByCategory}
+            holdings={holdings}
             displayedHoldings={displayedHoldings}
+            chfEurRate={chfEurRate}
+            sortKey={sortKey}
+            sortDir={sortDir}
+            onSort={handleSort}
+            moveHolding={moveHolding}
+            deleteHolding={deleteHolding}
+            updateHolding={updateHolding}
             newHolding={newHolding}
             onNewHoldingChange={handleNewHoldingChange}
-            onAddInvestment={(e) => handleAddHolding(e, "global")}
-            onUpdateHolding={updateHolding}
-            onMoveHolding={moveHolding}
-            onDeleteHolding={deleteHolding}
-            sortKey={sortKey}
-            profitClassGlobal={profitClassGlobal}
+            onAddHolding={handleAddHolding}
           />
         )}
 
+        {/* ONGLET CRYPTO */}
         {activeTab === "crypto" && (
           <CryptoTab
             cryptoHoldings={cryptoHoldings}
-            cryptoInvested={cryptoInvested}
-            cryptoCurrent={cryptoCurrent}
-            cryptoProfit={cryptoProfit}
-            cryptoProfitPct={cryptoProfitPct}
-            cryptoAllocation={cryptoAllocation}
             eurUsdtRate={eurUsdtRate}
             setEurUsdtRate={setEurUsdtRate}
-            newHolding={newHolding}
-            onNewHoldingChange={handleNewHoldingChange}
-            onAddCrypto={(e) => handleAddHolding(e, "crypto")}
-            onUpdateHolding={updateHolding}
-            onMoveHolding={moveHolding}
-            onDeleteHolding={deleteHolding}
             refreshCryptoPrices={refreshCryptoPrices}
             isRefreshingCrypto={isRefreshingCrypto}
             cryptoLastUpdate={cryptoLastUpdate}
-            profitClassCrypto={profitClassCrypto}
-            sortKey={sortKey}
+            moveHolding={moveHolding}
+            deleteHolding={deleteHolding}
+            updateHolding={updateHolding}
+            newHolding={newHolding}
+            onNewHoldingChange={handleNewHoldingChange}
+            onAddHolding={handleAddHolding}
           />
         )}
 
+        {/* ONGLET ACTIONS */}
         {activeTab === "actions" && (
           <ActionsTab
             actionsHoldings={actionsHoldings}
-            actionsInvested={actionsInvested}
-            actionsCurrent={actionsCurrent}
-            actionsProfit={actionsProfit}
-            actionsProfitPct={actionsProfitPct}
-            actionsAllocation={actionsAllocation}
+            moveHolding={moveHolding}
+            deleteHolding={deleteHolding}
+            updateHolding={updateHolding}
             newHolding={newHolding}
             onNewHoldingChange={handleNewHoldingChange}
-            onAddAction={(e) => handleAddHolding(e, "actions")}
-            onUpdateHolding={updateHolding}
-            onMoveHolding={moveHolding}
-            onDeleteHolding={deleteHolding}
+            onAddHolding={handleAddHolding}
             refreshStockPrices={refreshStockPrices}
             isRefreshingStocks={isRefreshingStocks}
             stockLastUpdate={stockLastUpdate}
-            profitClassActions={profitClassActions}
-            sortKey={sortKey}
           />
         )}
 
+        {/* ONGLET BUDGET */}
         {activeTab === "budget" && (
           <BudgetTab
             displayedHoldings={displayedHoldings}
             chfEurRate={chfEurRate}
             setChfEurRate={setChfEurRate}
-            totalBudgetFlux={derived.totalBudgetFlux}
-            onUpdateHolding={updateHolding}
-            onMoveHolding={moveHolding}
-            onDeleteHolding={deleteHolding}
-            sortKey={sortKey}
+            updateHolding={updateHolding}
+            moveHolding={moveHolding}
+            deleteHolding={deleteHolding}
           />
         )}
 
+        {/* ONGLET CREDITS */}
         {activeTab === "credits" && (
           <CreditsTab
             displayedHoldings={displayedHoldings}
-            totalCredits={totalCredits}
-            onUpdateHolding={updateHolding}
-            onMoveHolding={moveHolding}
-            onDeleteHolding={deleteHolding}
-            sortKey={sortKey}
+            updateHolding={updateHolding}
+            moveHolding={moveHolding}
+            deleteHolding={deleteHolding}
           />
         )}
       </div>

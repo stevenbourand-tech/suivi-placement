@@ -473,3 +473,26 @@ body {
 .crypto-table td:nth-child(9) {
   white-space: nowrap;
 }
+/* --- Mise en forme spécifique du tableau Actions --- */
+
+/* Conteneur scroll horizontal si besoin */
+.actions-table-wrapper {
+  overflow-x: auto;
+}
+
+/* Colonnes texte : Action / Compte / Ticker */
+.actions-table td:nth-child(1) .input,
+.actions-table td:nth-child(2) .input,
+.actions-table td:nth-child(3) .input {
+  min-width: 120px;   /* élargis le si tu veux encore plus large */
+}
+
+/* Colonnes numériques : Qté, PRU, Prix actuel, Investi, Valeur */
+.actions-table td:nth-child(4) .input,
+.actions-table td:nth-child(5) .input,
+.actions-table td:nth-child(6) .input,
+.actions-table td:nth-child(7) .input,
+.actions-table td:nth-child(8) .input {
+  min-width: 90px;
+  text-align: right;
+}

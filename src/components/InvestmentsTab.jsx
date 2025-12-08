@@ -2,33 +2,69 @@
 import {
   INVESTMENT_CATEGORIES,
   CATEGORIES,
+  EXCLUDED_CATEGORIES,
 } from "../constants";
 import {
   formatNumber,
   computeProfit,
   computeProfitPercent,
+  convertHoldingValueToEur,
 } from "../utils";
 import AllocationBlock from "./AllocationBlock";
 
 export default function InvestmentsTab({
-  totalInvested,
-  totalCurrent,
-  totalProfit,
-  totalProfitPct,
-  allocationByCategory,
+  holdings,
   displayedHoldings,
+  chfEurRate,
+  sortKey,
+  sortDir,
+  onSort,
+  moveHolding,
+  deleteHolding,
+  updateHolding,
   newHolding,
   onNewHoldingChange,
-  onAddInvestment,
-  onUpdateHolding,
-  onMoveHolding,
-  onDeleteHolding,
-  sortKey,
-  profitClassGlobal,
+  onAddHolding,
 }) {
-  const filteredHoldings = displayedHoldings.filter(
-    (h) =>
-      INVESTMENT_CATEGORIES.includes(h.category) && h.category !== "Crypto"
+  // Totaux globaux (hors crypto / budget / crédits)
+  const totalInvested = holdings.reduce((sum, h) => {
+    if (EXCLUDED_CATEGORIES.includes(h.category)) return sum;
+    if (h.category === "Crypto") return sum;
+    return sum + convertHoldingValueToEur(h, h.amountInvested, chfEurRate);
+  }, 0);
+
+  const totalCurrent = holdings.reduce((sum, h) => {
+    if (EXCLUDED_CATEGORIES.includes(h.category)) return sum;
+    if (h.category === "Crypto") return sum;
+    return sum + convertHoldingValueToEur(h, h.currentValue, chfEurRate);
+  }, 0);
+
+  const totalProfit = computeProfit(totalCurrent, totalInvested);
+  const totalProfitPct = computeProfitPercent(totalCurrent, totalInvested);
+
+  const profitClassGlobal =
+    "card-value " + (totalProfit >= 0 ? "profit-positive" : "profit-negative");
+
+  const allocationByCategory = INVESTMENT_CATEGORIES.map((cat) => {
+    const value = holdings
+      .filter((h) => h.category === cat)
+      .reduce(
+        (sum, h) =>
+          sum + convertHoldingValueToEur(h, h.currentValue, chfEurRate),
+        0
+      );
+    const weight = totalCurrent > 0 ? (value / totalCurrent) * 100 : 0;
+    return {
+      category: cat,
+      value,
+      weight,
+      key: cat,
+      label: cat,
+    };
+  }).filter((a) => a.value > 0);
+
+  const investmentRows = displayedHoldings.filter(
+    (h) => INVESTMENT_CATEGORIES.includes(h.category) && h.category !== "Crypto"
   );
 
   return (
@@ -56,9 +92,7 @@ export default function InvestmentsTab({
               {formatNumber(totalProfit)} <span>€</span>
             </div>
             <span
-              className={
-                "badge " + (totalProfit >= 0 ? "" : "badge-negative")
-              }
+              className={"badge " + (totalProfit >= 0 ? "" : "badge-negative")}
             >
               {totalProfit >= 0 ? "+" : ""}
               {totalProfitPct.toFixed(1)}%
@@ -71,9 +105,7 @@ export default function InvestmentsTab({
         {/* TABLEAU INVESTISSEMENTS */}
         <div className="card">
           <div className="card-header">
-            <div className="card-header-title">
-              Détail des investissements
-            </div>
+            <div className="card-header-title">Détail des investissements</div>
             <div className="card-header-subtitle">
               Ne montre que les vraies briques de patrimoine (hors crypto,
               budget & crédits). Tu peux trier et réorganiser les lignes.
@@ -85,27 +117,23 @@ export default function InvestmentsTab({
                 <tr>
                   <th
                     style={{ cursor: "pointer" }}
-                    onClick={() => onUpdateHolding("__sort__", "name")}
+                    onClick={() => onSort("name")}
                   >
-                    Nom{" "}
-                    {sortKey === "name" &&
-                      (/* direction gérée dans App */ true ? "" : "")}
+                    Nom {sortKey === "name" && (sortDir === "asc" ? "↑" : "↓")}
                   </th>
                   <th
                     style={{ cursor: "pointer" }}
-                    onClick={() => onUpdateHolding("__sort__", "account")}
+                    onClick={() => onSort("account")}
                   >
                     Compte{" "}
-                    {sortKey === "account" &&
-                      (/* direction gérée dans App */ true ? "" : "")}
+                    {sortKey === "account" && (sortDir === "asc" ? "↑" : "↓")}
                   </th>
                   <th
                     style={{ cursor: "pointer" }}
-                    onClick={() => onUpdateHolding("__sort__", "category")}
+                    onClick={() => onSort("category")}
                   >
                     Catégorie{" "}
-                    {sortKey === "category" &&
-                      (/* direction gérée dans App */ true ? "" : "")}
+                    {sortKey === "category" && (sortDir === "asc" ? "↑" : "↓")}
                   </th>
                   <th style={{ textAlign: "right" }}>Investi (€)</th>
                   <th style={{ textAlign: "right" }}>Valeur (€)</th>
@@ -115,7 +143,7 @@ export default function InvestmentsTab({
                 </tr>
               </thead>
               <tbody>
-                {filteredHoldings.map((h) => {
+                {investmentRows.map((h) => {
                   const localProfit = computeProfit(
                     h.currentValue,
                     h.amountInvested
@@ -133,7 +161,7 @@ export default function InvestmentsTab({
                           className="input"
                           value={h.name}
                           onChange={(e) =>
-                            onUpdateHolding(h.id, "name", e.target.value)
+                            updateHolding(h.id, "name", e.target.value)
                           }
                         />
                       </td>
@@ -142,7 +170,7 @@ export default function InvestmentsTab({
                           className="input"
                           value={h.account}
                           onChange={(e) =>
-                            onUpdateHolding(h.id, "account", e.target.value)
+                            updateHolding(h.id, "account", e.target.value)
                           }
                         />
                       </td>
@@ -151,7 +179,7 @@ export default function InvestmentsTab({
                           className="select"
                           value={h.category}
                           onChange={(e) =>
-                            onUpdateHolding(h.id, "category", e.target.value)
+                            updateHolding(h.id, "category", e.target.value)
                           }
                         >
                           {CATEGORIES.map((cat) => (
@@ -167,7 +195,7 @@ export default function InvestmentsTab({
                           className="input input-number"
                           value={h.amountInvested}
                           onChange={(e) =>
-                            onUpdateHolding(
+                            updateHolding(
                               h.id,
                               "amountInvested",
                               e.target.value
@@ -181,7 +209,7 @@ export default function InvestmentsTab({
                           className="input input-number"
                           value={h.currentValue}
                           onChange={(e) =>
-                            onUpdateHolding(
+                            updateHolding(
                               h.id,
                               "currentValue",
                               e.target.value
@@ -207,14 +235,14 @@ export default function InvestmentsTab({
                       <td style={{ textAlign: "center" }}>
                         <button
                           className="btn-icon"
-                          onClick={() => onMoveHolding(h.id, "up")}
+                          onClick={() => moveHolding(h.id, "up")}
                           title="Monter"
                         >
                           ↑
                         </button>
                         <button
                           className="btn-icon"
-                          onClick={() => onMoveHolding(h.id, "down")}
+                          onClick={() => moveHolding(h.id, "down")}
                           title="Descendre"
                         >
                           ↓
@@ -223,7 +251,7 @@ export default function InvestmentsTab({
                       <td style={{ textAlign: "center" }}>
                         <button
                           className="btn-icon"
-                          onClick={() => onDeleteHolding(h.id)}
+                          onClick={() => deleteHolding(h.id)}
                         >
                           ✕
                         </button>
@@ -232,7 +260,7 @@ export default function InvestmentsTab({
                   );
                 })}
 
-                {filteredHoldings.length === 0 && (
+                {investmentRows.length === 0 && (
                   <tr>
                     <td
                       colSpan={8}
@@ -258,24 +286,18 @@ export default function InvestmentsTab({
           <AllocationBlock
             title="Allocation par catégorie (investissements)"
             subtitle="Basée sur la valeur actuelle des catégories d’investissement uniquement."
-            allocations={allocationByCategory.map((a) => ({
-              ...a,
-              label: a.category,
-            }))}
-            emptyText="Renseigne au moins une valeur actuelle pour voir la répartition."
+            allocations={allocationByCategory}
           />
 
           <div className="section-title-small">Ajouter un investissement</div>
-          <form onSubmit={onAddInvestment}>
+          <form onSubmit={(e) => onAddHolding(e, "global")}>
             <div className="form-grid">
               <div>
                 <label className="label">Nom</label>
                 <input
                   className="input"
                   value={newHolding.name}
-                  onChange={(e) =>
-                    onNewHoldingChange("name", e.target.value)
-                  }
+                  onChange={(e) => onNewHoldingChange("name", e.target.value)}
                 />
               </div>
               <div>

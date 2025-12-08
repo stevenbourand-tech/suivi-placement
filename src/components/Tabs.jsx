@@ -1,5 +1,4 @@
 // src/components/Tabs.jsx
-
 export default function Tabs({ activeTab, onChange }) {
   const tabs = [
     { id: "global", label: "Patrimoine & investissements" },
@@ -11,13 +10,15 @@ export default function Tabs({ activeTab, onChange }) {
 
   return (
     <div className="tabs-row">
-      {tabs.map((t) => (
+      {tabs.map((tab) => (
         <button
-          key={t.id}
-          className={"tab-btn " + (activeTab === t.id ? "tab-btn-active" : "")}
-          onClick={() => onChange(t.id)}
+          key={tab.id}
+          className={
+            "tab-btn " + (activeTab === tab.id ? "tab-btn-active" : "")
+          }
+          onClick={() => onChange(tab.id)}
         >
-          {t.label}
+          {tab.label}
         </button>
       ))}
     </div>

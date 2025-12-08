@@ -1,22 +1,22 @@
 // src/components/BudgetTab.jsx
-import {
-  BUDGET_CATEGORIES,
-  CATEGORIES,
-} from "../constants";
-import { convertCurrency, formatNumber } from "../utils";
+import { BUDGET_CATEGORIES, CATEGORIES } from "../constants";
+import { formatNumber, convertCurrency } from "../utils";
 
 export default function BudgetTab({
   displayedHoldings,
   chfEurRate,
   setChfEurRate,
-  totalBudgetFlux,
-  onUpdateHolding,
-  onMoveHolding,
-  onDeleteHolding,
-  sortKey,
+  updateHolding,
+  moveHolding,
+  deleteHolding,
 }) {
-  const budgetRows = displayedHoldings.filter((h) =>
+  const budgetHoldings = displayedHoldings.filter((h) =>
     BUDGET_CATEGORIES.includes(h.category)
+  );
+
+  const totalBudgetFlux = budgetHoldings.reduce(
+    (s, h) => s + convertCurrency(h.amountInvested, h.currency, chfEurRate),
+    0
   );
 
   return (
@@ -25,8 +25,8 @@ export default function BudgetTab({
         <div className="section-title-small">Budget & flux fixes</div>
         <div className="section-subtitle-small">
           Ici tu suis tes <b>salaires, revenus variés, charges fixes,
-          abonnements…</b> Ces lignes ne sont pas prises en compte dans
-          la performance de ton patrimoine.
+          abonnements…</b> Ces lignes ne sont pas prises en compte dans la
+          performance de ton patrimoine.
         </div>
         <div style={{ marginTop: 6 }}>
           <span className="badge">
@@ -44,8 +44,7 @@ export default function BudgetTab({
               value={chfEurRate}
               onChange={(e) =>
                 setChfEurRate(
-                  parseFloat(String(e.target.value).replace(",", ".")) ||
-                    1.0
+                  parseFloat(String(e.target.value).replace(",", ".")) || 1.0
                 )
               }
             />
@@ -70,14 +69,14 @@ export default function BudgetTab({
               </tr>
             </thead>
             <tbody>
-              {budgetRows.map((h) => (
+              {budgetHoldings.map((h) => (
                 <tr key={h.id}>
                   <td>
                     <input
                       className="input"
                       value={h.name}
                       onChange={(e) =>
-                        onUpdateHolding(h.id, "name", e.target.value)
+                        updateHolding(h.id, "name", e.target.value)
                       }
                     />
                   </td>
@@ -86,7 +85,7 @@ export default function BudgetTab({
                       className="input"
                       value={h.account}
                       onChange={(e) =>
-                        onUpdateHolding(h.id, "account", e.target.value)
+                        updateHolding(h.id, "account", e.target.value)
                       }
                     />
                   </td>
@@ -95,7 +94,7 @@ export default function BudgetTab({
                       className="select"
                       value={h.category}
                       onChange={(e) =>
-                        onUpdateHolding(h.id, "category", e.target.value)
+                        updateHolding(h.id, "category", e.target.value)
                       }
                     >
                       {CATEGORIES.map((cat) => (
@@ -111,7 +110,7 @@ export default function BudgetTab({
                       className="input input-number"
                       value={h.amountInvested}
                       onChange={(e) =>
-                        onUpdateHolding(
+                        updateHolding(
                           h.id,
                           "amountInvested",
                           e.target.value
@@ -124,7 +123,7 @@ export default function BudgetTab({
                       className="select"
                       value={h.currency || "EUR"}
                       onChange={(e) =>
-                        onUpdateHolding(h.id, "currency", e.target.value)
+                        updateHolding(h.id, "currency", e.target.value)
                       }
                     >
                       <option value="EUR">EUR</option>
@@ -133,26 +132,20 @@ export default function BudgetTab({
                   </td>
                   <td style={{ textAlign: "right" }}>
                     {formatNumber(
-                      convertCurrency(
-                        h.amountInvested,
-                        h.currency,
-                        chfEurRate
-                      )
+                      convertCurrency(h.amountInvested, h.currency, chfEurRate)
                     )}{" "}
                     €
                   </td>
                   <td style={{ textAlign: "center" }}>
                     <button
                       className="btn-icon"
-                      onClick={() => onMoveHolding(h.id, "up")}
-                      disabled={!!sortKey}
+                      onClick={() => moveHolding(h.id, "up")}
                     >
                       ↑
                     </button>
                     <button
                       className="btn-icon"
-                      onClick={() => onMoveHolding(h.id, "down")}
-                      disabled={!!sortKey}
+                      onClick={() => moveHolding(h.id, "down")}
                     >
                       ↓
                     </button>
@@ -160,7 +153,7 @@ export default function BudgetTab({
                   <td style={{ textAlign: "center" }}>
                     <button
                       className="btn-icon"
-                      onClick={() => onDeleteHolding(h.id)}
+                      onClick={() => deleteHolding(h.id)}
                     >
                       ✕
                     </button>
@@ -168,7 +161,7 @@ export default function BudgetTab({
                 </tr>
               ))}
 
-              {budgetRows.length === 0 && (
+              {budgetHoldings.length === 0 && (
                 <tr>
                   <td
                     colSpan={8}

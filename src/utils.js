@@ -1,5 +1,4 @@
 // src/utils.js
-
 export function formatNumber(value) {
   return Number(value || 0).toLocaleString("fr-FR", {
     maximumFractionDigits: 2,
@@ -23,7 +22,17 @@ export function computeProfitPercent(current, invested) {
 export function convertCurrency(amount, currency, chfRate) {
   const val = Number(amount) || 0;
   if (currency === "CHF") return val * chfRate;
-  return val; // EUR par défaut
+  return val;
+}
+
+// Conversion pour les placements (patrimoine)
+export function convertHoldingValueToEur(h, value, chfEurRate) {
+  const v = Number(value) || 0;
+  if (h.currency === "CHF") {
+    const rate = chfEurRate || 1.05;
+    return v * rate;
+  }
+  return v; // EUR ou autre
 }
 
 export function guessCoingeckoId(symbol) {
@@ -40,15 +49,4 @@ export function guessCoingeckoId(symbol) {
     usdt: "tether",
   };
   return map[s] || null;
-}
-
-export function convertHoldingValueToEur(h, value, chfEurRate) {
-  const v = Number(value) || 0;
-
-  if (h.currency === "CHF") {
-    const rate = chfEurRate || 1.05;
-    return v * rate;
-  }
-
-  return v;
 }

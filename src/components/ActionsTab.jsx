@@ -8,23 +8,47 @@ import AllocationBlock from "./AllocationBlock";
 
 export default function ActionsTab({
   actionsHoldings,
-  actionsInvested,
-  actionsCurrent,
-  actionsProfit,
-  actionsProfitPct,
-  actionsAllocation,
+  moveHolding,
+  deleteHolding,
+  updateHolding,
   newHolding,
   onNewHoldingChange,
-  onAddAction,
-  onUpdateHolding,
-  onMoveHolding,
-  onDeleteHolding,
+  onAddHolding,
   refreshStockPrices,
   isRefreshingStocks,
   stockLastUpdate,
-  profitClassActions,
-  sortKey,
 }) {
+  const actionsInvested = actionsHoldings.reduce(
+    (s, h) => s + (Number(h.amountInvested) || 0),
+    0
+  );
+  const actionsCurrent = actionsHoldings.reduce(
+    (s, h) => s + (Number(h.currentValue) || 0),
+    0
+  );
+  const actionsProfit = computeProfit(actionsCurrent, actionsInvested);
+  const actionsProfitPct = computeProfitPercent(
+    actionsCurrent,
+    actionsInvested
+  );
+
+  const profitClassActions =
+    "card-value " +
+    (actionsProfit >= 0 ? "profit-positive" : "profit-negative");
+
+  const actionsAllocation = actionsHoldings
+    .map((h) => {
+      const value = Number(h.currentValue) || 0;
+      const weight = actionsCurrent > 0 ? (value / actionsCurrent) * 100 : 0;
+      return {
+        key: `${h.name}-${h.account}`,
+        label: `${h.name} (${h.account})`,
+        value,
+        weight,
+      };
+    })
+    .sort((a, b) => b.value - a.value);
+
   return (
     <>
       <div className="stats-grid">
@@ -64,9 +88,8 @@ export default function ActionsTab({
           Cours des actions (API Yahoo Finance)
         </div>
         <div className="section-subtitle-small">
-          Pour Air Liquide, utilise le ticker <b>AI.PA</b>. Si l’API est
-          bloquée par le navigateur, tu peux toujours saisir le cours
-          manuellement.
+          Pour Air Liquide, utilise le ticker <b>AI.PA</b>. Si l’API est bloquée
+          par le navigateur, tu peux toujours saisir le cours manuellement.
         </div>
         <div
           style={{
@@ -105,8 +128,8 @@ export default function ActionsTab({
               (ex : AI.PA).
             </div>
           </div>
-          <div className="table-wrapper">
-            <table className="table">
+          <div className="table-wrapper actions-table-wrapper">
+            <table className="table actions-table">
               <thead>
                 <tr>
                   <th>Action</th>
@@ -141,7 +164,7 @@ export default function ActionsTab({
                           className="input"
                           value={h.name}
                           onChange={(e) =>
-                            onUpdateHolding(h.id, "name", e.target.value)
+                            updateHolding(h.id, "name", e.target.value)
                           }
                         />
                       </td>
@@ -150,7 +173,7 @@ export default function ActionsTab({
                           className="input"
                           value={h.account}
                           onChange={(e) =>
-                            onUpdateHolding(h.id, "account", e.target.value)
+                            updateHolding(h.id, "account", e.target.value)
                           }
                         />
                       </td>
@@ -159,7 +182,7 @@ export default function ActionsTab({
                           className="input"
                           value={h.stockTicker || ""}
                           onChange={(e) =>
-                            onUpdateHolding(
+                            updateHolding(
                               h.id,
                               "stockTicker",
                               e.target.value
@@ -174,11 +197,7 @@ export default function ActionsTab({
                           type="number"
                           value={h.quantity ?? ""}
                           onChange={(e) =>
-                            onUpdateHolding(
-                              h.id,
-                              "quantity",
-                              e.target.value
-                            )
+                            updateHolding(h.id, "quantity", e.target.value)
                           }
                         />
                       </td>
@@ -188,7 +207,7 @@ export default function ActionsTab({
                           type="number"
                           value={h.avgBuyPrice ?? ""}
                           onChange={(e) =>
-                            onUpdateHolding(
+                            updateHolding(
                               h.id,
                               "avgBuyPrice",
                               e.target.value
@@ -202,11 +221,7 @@ export default function ActionsTab({
                           type="number"
                           value={h.livePrice ?? ""}
                           onChange={(e) =>
-                            onUpdateHolding(
-                              h.id,
-                              "livePrice",
-                              e.target.value
-                            )
+                            updateHolding(h.id, "livePrice", e.target.value)
                           }
                         />
                       </td>
@@ -216,7 +231,7 @@ export default function ActionsTab({
                           type="number"
                           value={h.amountInvested}
                           onChange={(e) =>
-                            onUpdateHolding(
+                            updateHolding(
                               h.id,
                               "amountInvested",
                               e.target.value
@@ -230,7 +245,7 @@ export default function ActionsTab({
                           type="number"
                           value={h.currentValue}
                           onChange={(e) =>
-                            onUpdateHolding(
+                            updateHolding(
                               h.id,
                               "currentValue",
                               e.target.value
@@ -256,15 +271,13 @@ export default function ActionsTab({
                       <td style={{ textAlign: "center" }}>
                         <button
                           className="btn-icon"
-                          onClick={() => onMoveHolding(h.id, "up")}
-                          disabled={!!sortKey}
+                          onClick={() => moveHolding(h.id, "up")}
                         >
                           ↑
                         </button>
                         <button
                           className="btn-icon"
-                          onClick={() => onMoveHolding(h.id, "down")}
-                          disabled={!!sortKey}
+                          onClick={() => moveHolding(h.id, "down")}
                         >
                           ↓
                         </button>
@@ -272,7 +285,7 @@ export default function ActionsTab({
                       <td style={{ textAlign: "center" }}>
                         <button
                           className="btn-icon"
-                          onClick={() => onDeleteHolding(h.id)}
+                          onClick={() => deleteHolding(h.id)}
                         >
                           ✕
                         </button>
@@ -307,15 +320,11 @@ export default function ActionsTab({
           <AllocationBlock
             title="Répartition de la poche actions"
             subtitle="Basée sur la valeur actuelle de chaque ligne d’actions."
-            allocations={actionsAllocation.map((a) => ({
-              ...a,
-              label: `${a.name} (${a.account})`,
-            }))}
-            emptyText="Ajoute au moins une action pour voir la répartition."
+            allocations={actionsAllocation}
           />
 
           <div className="section-title-small">Ajouter une action</div>
-          <form onSubmit={onAddAction}>
+          <form onSubmit={(e) => onAddHolding(e, "actions")}>
             <div className="form-grid">
               <div>
                 <label className="label">Nom (ex : Air Liquide)</label>
