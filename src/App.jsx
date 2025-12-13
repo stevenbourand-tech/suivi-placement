@@ -1,10 +1,6 @@
 // src/App.jsx
 import { useEffect, useState } from "react";
-import {
-  STORAGE_KEY,
-  DEFAULT_HOLDINGS,
-  CATEGORIES,
-} from "./constants";
+import { STORAGE_KEY, DEFAULT_HOLDINGS, CATEGORIES } from "./constants";
 import { guessCoingeckoId } from "./utils";
 
 import Tabs from "./components/Tabs";
@@ -16,11 +12,19 @@ import BudgetTab from "./components/BudgetTab";
 import CreditsTab from "./components/CreditsTab";
 
 export default function App() {
+  const OWNERS = ["Steven", "Evan", "Famille"];
+
   const [holdings, setHoldings] = useState(DEFAULT_HOLDINGS);
   const [activeTab, setActiveTab] = useState("global");
+
+  // Profil affiché (Steven / Evan / Famille)
+  const [activeOwner, setActiveOwner] = useState("Steven");
+
   const [eurUsdtRate, setEurUsdtRate] = useState(0.86);
   const [chfEurRate, setChfEurRate] = useState(1.05);
+
   const [newHolding, setNewHolding] = useState({
+    owner: "Steven",
     name: "",
     account: "",
     category: "Liquidités",
@@ -33,10 +37,13 @@ export default function App() {
     coingeckoId: "",
     stockTicker: "",
   });
+
   const [sortKey, setSortKey] = useState(null);
   const [sortDir, setSortDir] = useState("asc");
+
   const [isRefreshingCrypto, setIsRefreshingCrypto] = useState(false);
   const [cryptoLastUpdate, setCryptoLastUpdate] = useState(null);
+
   const [isRefreshingStocks, setIsRefreshingStocks] = useState(false);
   const [stockLastUpdate, setStockLastUpdate] = useState(null);
 
@@ -47,7 +54,12 @@ export default function App() {
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          setHoldings(parsed);
+          // MIGRATION: si owner absent => Steven
+          const migrated = parsed.map((h) => ({
+            ...h,
+            owner: h.owner || "Steven",
+          }));
+          setHoldings(migrated);
         }
       }
     } catch (e) {
@@ -73,10 +85,11 @@ export default function App() {
     }
   }
 
-  function getSortedHoldings() {
-    const arr = [...holdings];
+  function getSortedHoldings(list) {
+    const arr = [...list];
     if (!sortKey) return arr;
     const dir = sortDir === "asc" ? 1 : -1;
+
     return arr.sort((a, b) => {
       let av = a[sortKey] ?? "";
       let bv = b[sortKey] ?? "";
@@ -88,7 +101,13 @@ export default function App() {
     });
   }
 
-  const displayedHoldings = getSortedHoldings();
+  // Filtre owner (Steven/Evan/Famille) + tri
+  const ownerFilteredHoldings =
+    activeOwner === "Famille"
+      ? holdings
+      : holdings.filter((h) => (h.owner || "Steven") === activeOwner);
+
+  const displayedHoldings = getSortedHoldings(ownerFilteredHoldings);
 
   function moveHolding(id, direction) {
     setHoldings((prev) => {
@@ -97,6 +116,7 @@ export default function App() {
       if (index === -1) return prev;
       if (direction === "up" && index === 0) return prev;
       if (direction === "down" && index === arr.length - 1) return prev;
+
       const targetIndex = direction === "up" ? index - 1 : index + 1;
       const tmp = arr[index];
       arr[index] = arr[targetIndex];
@@ -154,8 +174,16 @@ export default function App() {
     const stockTicker =
       category === "Actions" ? newHolding.stockTicker || "" : null;
 
+    // Owner: si en mode Famille, on garde le choix du formulaire (sinon défaut Steven)
+    // sinon on force l’owner actif
+    const ownerToUse =
+      activeOwner === "Famille"
+        ? newHolding.owner || "Steven"
+        : activeOwner;
+
     const holding = {
       id: Date.now(),
+      owner: ownerToUse,
       name: newHolding.name,
       account: newHolding.account || "",
       category,
@@ -174,6 +202,7 @@ export default function App() {
 
     setNewHolding((prev) => ({
       ...prev,
+      owner: ownerToUse,
       name: "",
       account: "",
       amountInvested: "",
@@ -250,14 +279,21 @@ export default function App() {
 
   // ======= API CRYPTO =======
   async function refreshCryptoPrices() {
-    const cryptoHoldings = holdings.filter((h) => h.category === "Crypto");
+    const filtered =
+      activeOwner === "Famille"
+        ? holdings
+        : holdings.filter((h) => (h.owner || "Steven") === activeOwner);
+
+    const cryptoHoldingsLocal = filtered.filter((h) => h.category === "Crypto");
+
     const ids = Array.from(
       new Set(
-        cryptoHoldings
+        cryptoHoldingsLocal
           .map((h) => h.coingeckoId)
           .filter((id) => typeof id === "string" && id.length > 0)
       )
     );
+
     if (ids.length === 0) {
       alert(
         "Aucun id CoinGecko pour les cryptos. Vérifie les noms ou renseigne coingeckoId."
@@ -277,6 +313,11 @@ export default function App() {
       setHoldings((prev) =>
         prev.map((h) => {
           if (h.category !== "Crypto" || !h.coingeckoId) return h;
+
+          // si pas Famille, on ne touche que l’owner actif
+          if (activeOwner !== "Famille" && (h.owner || "Steven") !== activeOwner)
+            return h;
+
           const info = data[h.coingeckoId];
           if (!info || !info.eur) return h;
           const livePrice = info.eur;
@@ -287,6 +328,7 @@ export default function App() {
           return updated;
         })
       );
+
       setCryptoLastUpdate(new Date().toLocaleTimeString("fr-FR"));
     } catch (e) {
       console.error(e);
@@ -300,14 +342,23 @@ export default function App() {
 
   // ======= API ACTIONS =======
   async function refreshStockPrices() {
-    const actionsHoldings = holdings.filter((h) => h.category === "Actions");
+    const filtered =
+      activeOwner === "Famille"
+        ? holdings
+        : holdings.filter((h) => (h.owner || "Steven") === activeOwner);
+
+    const actionsHoldingsLocal = filtered.filter(
+      (h) => h.category === "Actions"
+    );
+
     const tickers = Array.from(
       new Set(
-        actionsHoldings
+        actionsHoldingsLocal
           .map((h) => h.stockTicker)
           .filter((t) => typeof t === "string" && t.length > 0)
       )
     );
+
     if (tickers.length === 0) {
       alert(
         "Aucun ticker renseigné pour les actions (ex : AI.PA pour Air Liquide)."
@@ -335,6 +386,11 @@ export default function App() {
       setHoldings((prev) =>
         prev.map((h) => {
           if (h.category !== "Actions" || !h.stockTicker) return h;
+
+          // si pas Famille, on ne touche que l’owner actif
+          if (activeOwner !== "Famille" && (h.owner || "Steven") !== activeOwner)
+            return h;
+
           const info = results[h.stockTicker];
           if (!info) return h;
           const livePrice = info.price;
@@ -345,6 +401,7 @@ export default function App() {
           return updated;
         })
       );
+
       setStockLastUpdate(new Date().toLocaleTimeString("fr-FR"));
     } catch (e) {
       console.error(e);
@@ -397,7 +454,14 @@ export default function App() {
         ) {
           return;
         }
-        setHoldings(parsed);
+
+        // MIGRATION import: owner par défaut
+        const migrated = parsed.map((h) => ({
+          ...h,
+          owner: h.owner || "Steven",
+        }));
+
+        setHoldings(migrated);
       } catch (err) {
         console.error(err);
         alert(
@@ -410,9 +474,11 @@ export default function App() {
     reader.readAsText(file);
   }
 
-  // ======= FILTRES PAR POCHES =======
-  const cryptoHoldings = holdings.filter((h) => h.category === "Crypto");
-  const actionsHoldings = holdings.filter((h) => h.category === "Actions");
+  // ======= FILTRES PAR POCHES (déjà filtrés owner) =======
+  const cryptoHoldings = displayedHoldings.filter((h) => h.category === "Crypto");
+  const actionsHoldings = displayedHoldings.filter(
+    (h) => h.category === "Actions"
+  );
 
   return (
     <div className="app-shell">
@@ -428,6 +494,28 @@ export default function App() {
             Données stockées uniquement dans ton navigateur.
           </div>
 
+          {/* SWITCH PROFIL */}
+          <div className="owner-switch">
+            {OWNERS.map((o) => (
+              <button
+                key={o}
+                className={
+                  "owner-btn " + (activeOwner === o ? "owner-btn-active" : "")
+                }
+                onClick={() => {
+                  setActiveOwner(o);
+                  setNewHolding((prev) => ({
+                    ...prev,
+                    owner: o === "Famille" ? (prev.owner || "Steven") : o,
+                  }));
+                }}
+                type="button"
+              >
+                {o}
+              </button>
+            ))}
+          </div>
+
           <Tabs activeTab={activeTab} onChange={setActiveTab} />
         </header>
 
@@ -437,7 +525,7 @@ export default function App() {
         {/* ONGLET PATRIMOINE */}
         {activeTab === "global" && (
           <InvestmentsTab
-            holdings={holdings}
+            holdings={holdings} // garde si ton composant en a besoin
             displayedHoldings={displayedHoldings}
             chfEurRate={chfEurRate}
             sortKey={sortKey}
@@ -449,6 +537,7 @@ export default function App() {
             newHolding={newHolding}
             onNewHoldingChange={handleNewHoldingChange}
             onAddHolding={handleAddHolding}
+            activeOwner={activeOwner} // au cas où tu veux l’utiliser dans InvestmentsTab
           />
         )}
 
@@ -467,6 +556,7 @@ export default function App() {
             newHolding={newHolding}
             onNewHoldingChange={handleNewHoldingChange}
             onAddHolding={handleAddHolding}
+            activeOwner={activeOwner}
           />
         )}
 
@@ -483,6 +573,7 @@ export default function App() {
             refreshStockPrices={refreshStockPrices}
             isRefreshingStocks={isRefreshingStocks}
             stockLastUpdate={stockLastUpdate}
+            activeOwner={activeOwner}
           />
         )}
 
@@ -495,6 +586,7 @@ export default function App() {
             updateHolding={updateHolding}
             moveHolding={moveHolding}
             deleteHolding={deleteHolding}
+            activeOwner={activeOwner}
           />
         )}
 
@@ -505,6 +597,7 @@ export default function App() {
             updateHolding={updateHolding}
             moveHolding={moveHolding}
             deleteHolding={deleteHolding}
+            activeOwner={activeOwner}
           />
         )}
       </div>

@@ -13,7 +13,7 @@ import {
 import AllocationBlock from "./AllocationBlock";
 
 export default function InvestmentsTab({
-  holdings,
+  holdings, // conservé pour compat, mais on ne l'utilise plus pour les totaux
   displayedHoldings,
   chfEurRate,
   sortKey,
@@ -26,14 +26,17 @@ export default function InvestmentsTab({
   onNewHoldingChange,
   onAddHolding,
 }) {
-  // Totaux globaux (hors crypto / budget / crédits)
-  const totalInvested = holdings.reduce((sum, h) => {
+  // Base = affichage courant (donc filtré owner dans App.jsx)
+  const base = Array.isArray(displayedHoldings) ? displayedHoldings : [];
+
+  // Totaux globaux (hors crypto / budget / crédits) SUR BASE FILTRÉE
+  const totalInvested = base.reduce((sum, h) => {
     if (EXCLUDED_CATEGORIES.includes(h.category)) return sum;
     if (h.category === "Crypto") return sum;
     return sum + convertHoldingValueToEur(h, h.amountInvested, chfEurRate);
   }, 0);
 
-  const totalCurrent = holdings.reduce((sum, h) => {
+  const totalCurrent = base.reduce((sum, h) => {
     if (EXCLUDED_CATEGORIES.includes(h.category)) return sum;
     if (h.category === "Crypto") return sum;
     return sum + convertHoldingValueToEur(h, h.currentValue, chfEurRate);
@@ -45,8 +48,9 @@ export default function InvestmentsTab({
   const profitClassGlobal =
     "card-value " + (totalProfit >= 0 ? "profit-positive" : "profit-negative");
 
+  // Allocation SUR BASE FILTRÉE (investissements uniquement)
   const allocationByCategory = INVESTMENT_CATEGORIES.map((cat) => {
-    const value = holdings
+    const value = base
       .filter((h) => h.category === cat)
       .reduce(
         (sum, h) =>
@@ -63,7 +67,8 @@ export default function InvestmentsTab({
     };
   }).filter((a) => a.value > 0);
 
-  const investmentRows = displayedHoldings.filter(
+  // Lignes affichées : catégories d'investissement hors crypto
+  const investmentRows = base.filter(
     (h) => INVESTMENT_CATEGORIES.includes(h.category) && h.category !== "Crypto"
   );
 
@@ -111,6 +116,7 @@ export default function InvestmentsTab({
               budget & crédits). Tu peux trier et réorganiser les lignes.
             </div>
           </div>
+
           <div className="table-wrapper">
             <table className="table">
               <thead>
@@ -142,6 +148,7 @@ export default function InvestmentsTab({
                   <th style={{ textAlign: "center" }}>Suppr.</th>
                 </tr>
               </thead>
+
               <tbody>
                 {investmentRows.map((h) => {
                   const localProfit = computeProfit(
@@ -165,6 +172,7 @@ export default function InvestmentsTab({
                           }
                         />
                       </td>
+
                       <td>
                         <input
                           className="input"
@@ -174,6 +182,7 @@ export default function InvestmentsTab({
                           }
                         />
                       </td>
+
                       <td>
                         <select
                           className="select"
@@ -189,34 +198,29 @@ export default function InvestmentsTab({
                           ))}
                         </select>
                       </td>
+
                       <td style={{ textAlign: "right" }}>
                         <input
                           type="number"
                           className="input input-number"
                           value={h.amountInvested}
                           onChange={(e) =>
-                            updateHolding(
-                              h.id,
-                              "amountInvested",
-                              e.target.value
-                            )
+                            updateHolding(h.id, "amountInvested", e.target.value)
                           }
                         />
                       </td>
+
                       <td style={{ textAlign: "right" }}>
                         <input
                           type="number"
                           className="input input-number"
                           value={h.currentValue}
                           onChange={(e) =>
-                            updateHolding(
-                              h.id,
-                              "currentValue",
-                              e.target.value
-                            )
+                            updateHolding(h.id, "currentValue", e.target.value)
                           }
                         />
                       </td>
+
                       <td style={{ textAlign: "right" }}>
                         <div
                           className={
@@ -232,11 +236,13 @@ export default function InvestmentsTab({
                           {localProfitPct.toFixed(1)}%
                         </div>
                       </td>
+
                       <td style={{ textAlign: "center" }}>
                         <button
                           className="btn-icon"
                           onClick={() => moveHolding(h.id, "up")}
                           title="Monter"
+                          type="button"
                         >
                           ↑
                         </button>
@@ -244,14 +250,17 @@ export default function InvestmentsTab({
                           className="btn-icon"
                           onClick={() => moveHolding(h.id, "down")}
                           title="Descendre"
+                          type="button"
                         >
                           ↓
                         </button>
                       </td>
+
                       <td style={{ textAlign: "center" }}>
                         <button
                           className="btn-icon"
                           onClick={() => deleteHolding(h.id)}
+                          type="button"
                         >
                           ✕
                         </button>
@@ -305,21 +314,18 @@ export default function InvestmentsTab({
                 <input
                   className="input"
                   value={newHolding.account}
-                  onChange={(e) =>
-                    onNewHoldingChange("account", e.target.value)
-                  }
+                  onChange={(e) => onNewHoldingChange("account", e.target.value)}
                 />
               </div>
             </div>
+
             <div className="form-grid-2" style={{ marginTop: 6 }}>
               <div>
                 <label className="label">Catégorie</label>
                 <select
                   className="select"
                   value={newHolding.category}
-                  onChange={(e) =>
-                    onNewHoldingChange("category", e.target.value)
-                  }
+                  onChange={(e) => onNewHoldingChange("category", e.target.value)}
                 >
                   {INVESTMENT_CATEGORIES.map((cat) => (
                     <option key={cat} value={cat}>
@@ -340,6 +346,7 @@ export default function InvestmentsTab({
                 />
               </div>
             </div>
+
             <div className="form-grid-2" style={{ marginTop: 6 }}>
               <div>
                 <label className="label">Valeur actuelle (€)</label>
@@ -357,9 +364,7 @@ export default function InvestmentsTab({
                 <select
                   className="select"
                   value={newHolding.currency}
-                  onChange={(e) =>
-                    onNewHoldingChange("currency", e.target.value)
-                  }
+                  onChange={(e) => onNewHoldingChange("currency", e.target.value)}
                 >
                   <option value="EUR">EUR</option>
                   <option value="CHF">CHF</option>
@@ -368,6 +373,7 @@ export default function InvestmentsTab({
                 </select>
               </div>
             </div>
+
             <button className="btn-primary" type="submit">
               ➕ Ajouter l’investissement
             </button>
